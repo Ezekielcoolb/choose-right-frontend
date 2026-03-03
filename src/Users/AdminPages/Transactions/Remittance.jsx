@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { Loader2, CalendarDays, CalendarRange, RefreshCw, Search, Users } from "lucide-react";
+import { Loader2, CalendarDays, CalendarRange, RefreshCw, Search, Users, AlertTriangle, CheckCircle, Plus, Minus, X, Trash2 } from "lucide-react";
 
-import { fetchCsos } from "../../../redux/slices/csoSlice";
+import { fetchCsos, adjustCsoRemittance, deleteCsoRemittance } from "../../../redux/slices/csoSlice";
 
 const formatCurrency = (amount) => `₦${Number(amount || 0).toLocaleString()}`;
 
@@ -69,6 +69,11 @@ export default function AdminRemittancePage() {
   const [customEnd, setCustomEnd] = useState("");
   const [csoFilter, setCsoFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const [adjustingEntry, setAdjustingEntry] = useState(null);
+  const [adjustAmount, setAdjustAmount] = useState("");
+  const [adjustAction, setAdjustAction] = useState("");
+  const [deletingEntry, setDeletingEntry] = useState(null);
+
 
   useEffect(() => {
     if (status === "idle") {
@@ -110,6 +115,8 @@ export default function AdminRemittancePage() {
           amountCollected: Number.isFinite(collected) ? collected : 0,
           amountPaid: Number.isFinite(paid) ? paid : 0,
           balance: Number.isFinite(balance) ? balance : 0,
+          resolution: item.resolution || 0,
+          issueResolution: item.issueResolution || "",
           remark: item.remark || "",
           recordedAt: localDate,
           dateKey: dateKey(recordedAt),
@@ -208,6 +215,37 @@ export default function AdminRemittancePage() {
   }, [entries]);
 
   const isLoading = status === "loading" || status === "idle";
+
+  const handleAdjust = async () => {
+    if (!adjustingEntry || !adjustAmount || !adjustAction) return;
+    const amount = Number(adjustAmount);
+    if (isNaN(amount) || amount <= 0) return;
+
+    await dispatch(
+      adjustCsoRemittance({
+        csoId: adjustingEntry.csoId,
+        remittanceId: adjustingEntry.remittanceId,
+        amount,
+        action: adjustAction,
+      }),
+    );
+
+    setAdjustingEntry(null);
+    setAdjustAmount("");
+    setAdjustAction("");
+  };
+
+  const handleDelete = async () => {
+    if (!deletingEntry) return;
+    await dispatch(
+      deleteCsoRemittance({
+        csoId: deletingEntry.csoId,
+        remittanceId: deletingEntry.remittanceId,
+      }),
+    );
+    setDeletingEntry(null);
+  };
+
 
   return (
     <div className="space-y-8 p-6">
@@ -364,7 +402,9 @@ export default function AdminRemittancePage() {
                   <th className="px-4 py-3 text-right font-semibold">Collected</th>
                   <th className="px-4 py-3 text-right font-semibold">Remitted</th>
                   <th className="px-4 py-3 text-right font-semibold">Variance</th>
-                  <th className="px-4 py-3 text-left font-semibold">Remark</th>
+                  <th className="px-4 py-3 text-right font-semibold">Manager Resolution</th>
+                  <th className="px-4 py-3 text-left font-semibold">Issue</th>
+                  <th className="px-4 py-3 text-center font-semibold text-primary">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -389,7 +429,90 @@ export default function AdminRemittancePage() {
                     <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-amber-600">
                       {formatCurrency(entry.balance)}
                     </td>
-                    <td className="px-4 py-3 text-slate-500">{entry.remark || "—"}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-slate-900">
+                      {entry.resolution > 0 ? formatCurrency(entry.resolution) : "—"}
+                    </td>
+                    <td className="px-4 py-3 text-left">
+                      <div className="flex flex-col gap-1">
+                        {entry.resolution > 0 ? (
+                          <>
+                            <span className="text-sm text-slate-600">{entry.issueResolution || "—"}</span>
+                            <div className="flex items-center gap-1.5">
+                              {Number(entry.amountPaid) !== Number(entry.resolution) ? (
+                                <div className="flex items-center gap-1 text-[10px] font-bold uppercase text-rose-500">
+                                  <AlertTriangle className="h-3 w-3" />
+                                  <span>Mismatch</span>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-1 text-[10px] font-bold uppercase text-emerald-500">
+                                  <CheckCircle className="h-3 w-3" />
+                                  <span>Matched</span>
+                                </div>
+                              )}
+                            </div>
+                          </>
+                        ) : (
+                          <span className="text-xs text-slate-400 italic">No resolution set</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        <button
+                          onClick={() => {
+                            const parts = entry.id.split("-");
+                            const cso = csos.find(c => c._id === entry.csoId);
+                            const remId = cso.remittance[Number(parts[1])]?._id;
+                            setAdjustingEntry({
+                              csoId: entry.csoId,
+                              remittanceId: remId,
+                              csoName: entry.csoName
+                            });
+                            setAdjustAction("add");
+                          }}
+                          className="p-1 rounded-full bg-emerald-100 text-emerald-600 hover:bg-emerald-200 transition-colors"
+                          title="Add Remittance"
+                        >
+                          <Plus className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            const parts = entry.id.split("-");
+                            const cso = csos.find(c => c._id === entry.csoId);
+                            const remId = cso.remittance[Number(parts[1])]?._id;
+                            setAdjustingEntry({
+                              csoId: entry.csoId,
+                              remittanceId: remId,
+                              csoName: entry.csoName
+                            });
+                            setAdjustAction("subtract");
+                          }}
+                          className="p-1 rounded-full bg-rose-100 text-rose-600 hover:bg-rose-200 transition-colors"
+                          title="Subtract Remittance"
+                        >
+                          <Minus className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            const parts = entry.id.split("-");
+                            const cso = csos.find((c) => c._id === entry.csoId);
+                            const remId = cso.remittance[Number(parts[1])]?._id;
+                            setDeletingEntry({
+                              csoId: entry.csoId,
+                              remittanceId: remId,
+                              csoName: entry.csoName,
+                              date: entry.recordedAt,
+                              amount: entry.amountPaid,
+                            });
+                          }}
+                          className="p-1 rounded-full bg-slate-100 text-slate-400 hover:bg-rose-100 hover:text-rose-600 transition-colors"
+                          title="Delete Remittance"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </td>
+
                   </tr>
                 ))}
               </tbody>
@@ -397,7 +520,113 @@ export default function AdminRemittancePage() {
           )}
         </div>
       </section>
+
+      {/* Adjustment Modal */}
+      {adjustingEntry && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl animate-in fade-in zoom-in duration-200">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-slate-900 capitalize">
+                {adjustAction} Remittance
+              </h3>
+              <button
+                onClick={() => setAdjustingEntry(null)}
+                className="text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            
+            <p className="text-sm text-slate-500 mb-6">
+              Adjusting remittance for <span className="font-semibold text-slate-700">{adjustingEntry.csoName}</span>. 
+              The amount will be {adjustAction === 'add' ? 'added to' : 'subtracted from'} the remitted total.
+            </p>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">
+                  Amount (₦)
+                </label>
+                <input
+                  type="number"
+                  value={adjustAmount}
+                  onChange={(e) => setAdjustAmount(e.target.value)}
+                  placeholder="Enter amount"
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => setAdjustingEntry(null)}
+                  className="flex-1 rounded-full border border-slate-200 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAdjust}
+                  disabled={!adjustAmount || Number(adjustAmount) <= 0 || (status === 'loading')}
+                  className={`flex-1 rounded-full py-2.5 text-sm font-semibold text-white shadow-sm transition-all ${
+                    adjustAction === 'add' 
+                      ? 'bg-emerald-600 hover:bg-emerald-700' 
+                      : 'bg-rose-600 hover:bg-rose-700'
+                  } disabled:opacity-50 disabled:cursor-not-allowed`}
+                >
+                  {status === 'loading' ? (
+                    <Loader2 className="h-4 w-4 animate-spin mx-auto" />
+                  ) : (
+                    'Confirm'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deletingEntry && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl animate-in fade-in zoom-in duration-200">
+            <div className="flex items-center justify-center mb-4 text-rose-500">
+              <div className="p-3 rounded-full bg-rose-50">
+                <Trash2 className="h-8 w-8" />
+              </div>
+            </div>
+            
+            <h3 className="text-xl font-bold text-slate-900 text-center mb-2">
+              Confirm Deletion
+            </h3>
+            
+            <p className="text-sm text-slate-500 text-center mb-6">
+              Are you sure you want to delete the remittance of <span className="font-semibold text-slate-700">{formatCurrency(deletingEntry.amount)}</span> for <span className="font-semibold text-slate-700">{deletingEntry.csoName}</span> recorded on {deletingEntry.date?.toLocaleDateString()}? This action cannot be undone.
+            </p>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeletingEntry(null)}
+                className="flex-1 rounded-full border border-slate-200 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                No, cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={status === 'loading'}
+                className="flex-1 rounded-full bg-rose-600 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-rose-700 transition-all disabled:opacity-50"
+              >
+                {status === 'loading' ? (
+                  <Loader2 className="h-4 w-4 animate-spin mx-auto" />
+                ) : (
+                  'Yes, delete'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
 

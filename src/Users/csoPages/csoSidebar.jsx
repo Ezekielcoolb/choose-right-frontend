@@ -16,8 +16,8 @@ const baseIconClasses = "h-5 w-5";
 
 function navItems() {
   return [
-    { label: "Home", to: "/cso", icon: Home },
-    { label: "Customers", to: "/cso/customers", icon: User },
+    // { label: "Home", to: "/cso", icon: Home },
+    { label: "Customers", to: "/cso", icon: User },
     { label: "Products", to: "/cso/products", icon: ClipboardList },
     { label: "Collections", to: "/cso/collection", icon: Wallet },
     { label: "Dashboard", to: "/cso/dashboard", icon: LayoutDashboard },

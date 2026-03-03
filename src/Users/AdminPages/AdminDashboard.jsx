@@ -180,11 +180,15 @@ export default function AdminDashboardPage() {
       loanDisbursed: 0,
       loanRepaid: 0,
       loanFees: 0,
+      loanFees: 0,
       savingsCount: 0,
       loanCount: 0,
+      totalDeposit: 0,
+      totalMaintenance: 0,
     }),
     [],
   );
+
 
   const overviewData = overview.data || {};
   const totals = overviewData.totals || emptyTotals;
@@ -281,13 +285,14 @@ export default function AdminDashboardPage() {
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Total deposits</p>
-                  <p className="mt-2 text-2xl font-semibold text-slate-900">{formatCurrency(totals.savingsDeposited)}</p>
+                  <p className="mt-2 text-2xl font-semibold text-slate-900">{formatCurrency(totals.totalDeposit)}</p>
                 </div>
                 <PiggyBank className="h-8 w-8 text-primary" />
               </div>
-              <p className="mt-3 text-xs text-slate-500">Across {totals.savingsCount.toLocaleString()} savings plans</p>
-              <ProgressMeter label="Available balance" total={totals.savingsDeposited} value={totals.availableBalance} tone="bg-emerald-500" />
+              <p className="mt-3 text-xs text-slate-500">Net cumulative savings & repayments</p>
+              <ProgressMeter label="Available liquidity" total={totals.totalDeposit} value={totals.availableBalance} tone="bg-emerald-500" />
             </article>
+
 
             <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex items-start justify-between">
@@ -316,44 +321,41 @@ export default function AdminDashboardPage() {
             <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex items-start justify-between">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Fee portfolio</p>
-                  <p className="mt-2 text-2xl font-semibold text-slate-900">{formatCurrency(totals.savingsFees + totals.loanFees)}</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Total maintenance</p>
+                  <p className="mt-2 text-2xl font-semibold text-slate-900">{formatCurrency(totals.totalMaintenance)}</p>
                 </div>
                 <PieChart className="h-8 w-8 text-rose-500" />
               </div>
-              <p className="mt-3 text-xs text-slate-500">Maintenance & service fees since inception</p>
-              <ProgressMeter label="Loan fee share" total={totals.savingsFees + totals.loanFees || 1} value={totals.loanFees} tone="bg-rose-500" />
+              <p className="mt-3 text-xs text-slate-500">Combined network maintenance revenue</p>
+              <ProgressMeter label="Loan fee share" total={totals.totalMaintenance || 1} value={totals.loanFees} tone="bg-rose-500" />
             </article>
+
           </section>
 
           <section className="grid gap-6 lg:grid-cols-2">
             <article className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-xl font-semibold text-slate-900">Savings portfolio</h2>
-                  <p className="text-sm text-slate-500">Overview of {totals.savingsCount.toLocaleString()} savings plans.</p>
+                  <h2 className="text-xl font-semibold text-slate-900">Savings Section</h2>
+                  <p className="text-sm text-slate-500">Core metrics for customer savings.</p>
                 </div>
                 <PiggyBank className="h-7 w-7 text-primary" />
               </div>
               <dl className="mt-6 grid gap-4 sm:grid-cols-2">
                 <div className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
-                  <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Number of savings</dt>
-                  <dd className="mt-2 text-lg font-semibold text-slate-900">{totals.savingsCount.toLocaleString()}</dd>
-                </div>
-                <div className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
-                  <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Amount deposited</dt>
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Total Amount Saved</dt>
                   <dd className="mt-2 text-lg font-semibold text-slate-900">{formatCurrency(totals.savingsDeposited)}</dd>
                 </div>
                 <div className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
-                  <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Maintenance fee</dt>
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Total Maintenance on Saving</dt>
                   <dd className="mt-2 text-lg font-semibold text-slate-900">{formatCurrency(totals.savingsFees)}</dd>
                 </div>
                 <div className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
-                  <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Withdrawn</dt>
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Total Withdrawal</dt>
                   <dd className="mt-2 text-lg font-semibold text-slate-900">{formatCurrency(totals.savingsWithdrawn)}</dd>
                 </div>
                 <div className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
-                  <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Remaining balance</dt>
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Available Balance</dt>
                   <dd className="mt-2 text-lg font-semibold text-emerald-700">{formatCurrency(totals.availableBalance)}</dd>
                 </div>
               </dl>
@@ -362,31 +364,33 @@ export default function AdminDashboardPage() {
             <article className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-xl font-semibold text-slate-900">Loan portfolio</h2>
-                  <p className="text-sm text-slate-500">Summary of {totals.loanCount.toLocaleString()} active loans.</p>
+                  <h2 className="text-xl font-semibold text-slate-900">Loan Section</h2>
+                  <p className="text-sm text-slate-500">Performance tracking for the loan portfolio.</p>
                 </div>
                 <Banknote className="h-7 w-7 text-amber-500" />
               </div>
               <dl className="mt-6 grid gap-4 sm:grid-cols-2">
                 <div className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
-                  <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Number of loans</dt>
-                  <dd className="mt-2 text-lg font-semibold text-slate-900">{totals.loanCount.toLocaleString()}</dd>
-                </div>
-                <div className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
-                  <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Total disbursed</dt>
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Total Loan</dt>
                   <dd className="mt-2 text-lg font-semibold text-slate-900">{formatCurrency(totals.loanDisbursed)}</dd>
                 </div>
                 <div className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
-                  <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Amount paid</dt>
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Total Paid Back</dt>
                   <dd className="mt-2 text-lg font-semibold text-slate-900">{formatCurrency(totals.loanRepaid)}</dd>
                 </div>
                 <div className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
-                  <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Loan balance</dt>
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Loan Maintenance Fee</dt>
+                  <dd className="mt-2 text-lg font-semibold text-slate-900">{formatCurrency(totals.loanFees)}</dd>
+                </div>
+
+                <div className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Loan Balance</dt>
                   <dd className="mt-2 text-lg font-semibold text-amber-700">{formatCurrency(totals.loanOutstanding)}</dd>
                 </div>
               </dl>
             </article>
           </section>
+
 
           <section className="grid gap-6 lg:grid-cols-3">
             <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:col-span-2">

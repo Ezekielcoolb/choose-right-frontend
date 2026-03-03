@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk, nanoid } from "@reduxjs/toolkit";
 import apiClient from "../../api/client";
+import { logoutCso } from "./csoAuthSlice.jsx";
 
 const PLAN_TYPE_SAVING = "saving";
 const PLAN_TYPE_LOAN = "loan";
@@ -60,6 +61,15 @@ const normalizePlan = (plan = {}) => {
     return plan;
   }
 
+  let metadata = {};
+  if (plan.metadata) {
+    if (typeof plan.metadata.get === "function") {
+      metadata = Object.fromEntries(plan.metadata);
+    } else if (typeof plan.metadata === "object") {
+      metadata = { ...plan.metadata };
+    }
+  }
+
   const normalizedPlanType = (plan.planType || (plan.isLoan ? PLAN_TYPE_LOAN : PLAN_TYPE_SAVING))
     .toString()
     .toLowerCase();
@@ -80,6 +90,7 @@ const normalizePlan = (plan = {}) => {
     planType: normalizedPlanType,
     loanStatus: normalizedLoanStatus,
     loanRequest: normalizedRequest,
+    metadata,
   };
 };
 
@@ -102,6 +113,20 @@ export const fetchAdminSavingsPlans = createAsyncThunk(
     try {
       const response = await apiClient.get("/admin/savings");
       return response.data;
+    } catch (error) {
+      return thunkAPI.rejectWithValue(error.response?.data?.message || error.message);
+    }
+  },
+);
+
+export const fetchAdminPlanEntries = createAsyncThunk(
+  "savings/fetchAdminPlanEntries",
+  async ({ customerId, planId, page = 1, limit = 20 }, thunkAPI) => {
+    try {
+      const response = await apiClient.get(
+        `/admin/customers/${customerId}/plans/${planId}/entries?page=${page}&limit=${limit}`,
+      );
+      return { customerId, planId, page, limit, data: response.data };
     } catch (error) {
       return thunkAPI.rejectWithValue(error.response?.data?.message || error.message);
     }
@@ -192,6 +217,18 @@ export const updateSavingsPlanStatus = createAsyncThunk(
   },
 );
 
+export const updateSavingsDailyContribution = createAsyncThunk(
+  "savings/updateDailyContribution",
+  async ({ planId, payload }, thunkAPI) => {
+    try {
+      const response = await apiClient.patch(`/savings/${planId}/contribution`, payload);
+      return response.data;
+    } catch (error) {
+      return thunkAPI.rejectWithValue(error.response?.data?.message || error.message);
+    }
+  },
+);
+
 export const fetchSavingsEntries = createAsyncThunk(
   "savings/fetchEntries",
   async ({ planId, page = 1, limit = 20 }, thunkAPI) => {
@@ -241,7 +278,7 @@ export const rejectSavingsLoan = createAsyncThunk(
   },
 );
 
-const initialState = {
+const createInitialState = () => ({
   plansByCustomer: {},
   plansById: {},
   entriesByPlan: {},
@@ -255,7 +292,9 @@ const initialState = {
   adminPlans: [],
   adminPlansStatus: "idle",
   adminPlansError: null,
-};
+});
+
+const initialState = createInitialState();
 
 const savingsSlice = createSlice({
   name: "savings",
@@ -266,6 +305,7 @@ const savingsSlice = createSlice({
       state.mutationError = null;
       state.selectedPlan = null;
     },
+    resetSavingsState: () => createInitialState(),
   },
   extraReducers: (builder) => {
     builder
@@ -322,6 +362,23 @@ const savingsSlice = createSlice({
         }
       })
       .addCase(fetchSavingsPlanById.rejected, (state, action) => {
+        state.mutationStatus = "failed";
+        state.mutationError = action.payload || action.error.message;
+      })
+      .addCase(fetchAdminPlanEntries.pending, (state) => {
+        state.mutationStatus = "loading";
+        state.mutationError = null;
+      })
+      .addCase(fetchAdminPlanEntries.fulfilled, (state, action) => {
+        state.mutationStatus = "succeeded";
+        const { planId, data } = action.payload;
+        if (data?.plan) {
+          const normalizedPlan = normalizePlan(data.plan);
+          state.plansById[normalizedPlan._id] = normalizedPlan;
+        }
+        state.entriesByPlan[planId] = data;
+      })
+      .addCase(fetchAdminPlanEntries.rejected, (state, action) => {
         state.mutationStatus = "failed";
         state.mutationError = action.payload || action.error.message;
       })
@@ -436,6 +493,39 @@ const savingsSlice = createSlice({
           state.selectedPlan = plan;
         }
       })
+      .addCase(updateSavingsDailyContribution.pending, (state) => {
+        state.mutationStatus = "loading";
+        state.mutationError = null;
+      })
+      .addCase(updateSavingsDailyContribution.fulfilled, (state, action) => {
+        state.mutationStatus = "succeeded";
+        const { plan: rawPlan, feeEntry } = action.payload || {};
+        const plan = normalizePlan(rawPlan);
+        if (plan?._id) {
+          state.plansById[plan._id] = plan;
+          if (plan.customerId && state.plansByCustomer[plan.customerId]) {
+            state.plansByCustomer[plan.customerId] = state.plansByCustomer[plan.customerId].map((item) =>
+              item._id === plan._id ? plan : item,
+            );
+          }
+          if (state.selectedPlan?._id === plan._id) {
+            state.selectedPlan = plan;
+          }
+          if (feeEntry && state.entriesByPlan[plan._id]) {
+            const existing = state.entriesByPlan[plan._id];
+            const items = Array.isArray(existing.items) ? existing.items : [];
+            state.entriesByPlan[plan._id] = {
+              ...existing,
+              items: [feeEntry, ...items],
+            };
+          }
+        }
+        state.lastActionId = nanoid();
+      })
+      .addCase(updateSavingsDailyContribution.rejected, (state, action) => {
+        state.mutationStatus = "failed";
+        state.mutationError = action.payload || action.error.message;
+      })
       .addCase(fetchSavingsEntries.pending, (state) => {
         state.mutationStatus = "loading";
         state.mutationError = null;
@@ -493,10 +583,11 @@ const savingsSlice = createSlice({
           );
         }
         state.lastActionId = nanoid();
-      });
+      })
+      .addCase(logoutCso, () => createInitialState());
   },
 });
 
-export const { clearSavingsState } = savingsSlice.actions;
+export const { clearSavingsState, resetSavingsState } = savingsSlice.actions;
 
 export default savingsSlice.reducer;

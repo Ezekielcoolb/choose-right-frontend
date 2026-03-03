@@ -7,6 +7,7 @@ import { fetchAdminSavingsPlans } from "../../../redux/slices/savingsSlice";
 import { fetchActiveLoans } from "../../../redux/slices/adminLoanSlice";
 import { fetchCsos } from "../../../redux/slices/csoSlice";
 import { fetchCustomers } from "../../../redux/slices/customersSlice";
+import { fetchDashboardOverview } from "../../../redux/slices/adminDashboardSlice";
 
 const currencyFormatter = new Intl.NumberFormat("en-NG", {
   style: "currency",
@@ -109,6 +110,19 @@ const resolveCsoMeta = (plan, csosById) => {
   return { id: csoId, name: "—", phone: "—" };
 };
 
+const isLoan = (plan) => {
+  if (!plan) return false;
+  const status = (plan.loanStatus || plan.status || "").toLowerCase();
+  const type = (plan.planType || "").toLowerCase();
+  // Only classify as Loan if it's explicitly approved, active, or in a terminal "paid" state.
+  // Pending and Rejected requests should stay as Savings.
+  return (
+    ["approved", "active", "completed", "disbursed", "repaid"].includes(status) ||
+    plan.isLoan === true ||
+    type === "loan"
+  );
+};
+
 const deriveLoanMetrics = (plan) => {
   const loanDetails = plan?.loanDetails || {};
 
@@ -126,18 +140,30 @@ const deriveLoanMetrics = (plan) => {
       loanDetails.repaymentCollected ??
       loanDetails.paid ??
       loanDetails.loanPaid ??
+      plan?.totalPaid ??
+      plan?.totalDeposited ??
       0,
   );
 
-  const balanceCandidate = Number(loanDetails.balance ?? loanDetails.outstanding ?? amount - totalPaid);
   const loanFees = Number(
-    loanDetails.maintenanceFee ?? loanDetails.processingFee ?? loanDetails.serviceCharge ?? 0,
+    loanDetails.maintenanceFee ??
+      loanDetails.processingFee ??
+      loanDetails.serviceCharge ??
+      plan?.loanFees ??
+      0,
   );
+  
+  const mFee = Number(plan.totalFees || plan.maintenanceFee || 0);
+  const totalFeesOnLoan = loanFees + mFee;
+  
+  // Net Principal Repayment = Total Paid - All Fees associated with the loan
+  const netPaid = Math.max(0, totalPaid - totalFeesOnLoan);
+  const balanceCandidate = amount - netPaid;
 
   return {
     amount: Number.isFinite(amount) && amount > 0 ? amount : 0,
     totalPaid: Number.isFinite(totalPaid) && totalPaid > 0 ? totalPaid : 0,
-    balance: Number.isFinite(balanceCandidate) ? Math.max(balanceCandidate, 0) : Math.max(amount - totalPaid, 0),
+    balance: Number.isFinite(balanceCandidate) ? Math.max(balanceCandidate, 0) : 0,
     loanFees: Number.isFinite(loanFees) && loanFees > 0 ? loanFees : 0,
   };
 };
@@ -167,6 +193,8 @@ const aggregateTotals = (records) =>
     },
   );
 
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
+
 export default function AdminTransactionsPage() {
   const dispatch = useDispatch();
 
@@ -176,11 +204,20 @@ export default function AdminTransactionsPage() {
   const { items: customers, status: customersStatus, error: customersError } = useSelector(
     (state) => state.customers,
   );
+  const { overview: dashboardOverview } = useSelector((state) => state.adminDashboard) || {};
 
   const [selectedMonth, setSelectedMonth] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
   const [csoFilter, setCsoFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const [pageSize, setPageSize] = useState(PAGE_SIZE_OPTIONS[1]);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  useEffect(() => {
+    if (!dashboardOverview || dashboardOverview.status === "idle") {
+      dispatch(fetchDashboardOverview());
+    }
+  }, [dashboardOverview, dispatch]);
 
   useEffect(() => {
     if (adminPlansStatus === "idle") {
@@ -234,7 +271,9 @@ export default function AdminTransactionsPage() {
   }, [csos]);
 
   const savingsRecords = useMemo(() => {
-    return (adminPlans || []).map((plan) => {
+    return (adminPlans || [])
+      .filter((plan) => !isLoan(plan))
+      .map((plan) => {
       const customer = resolveCustomerMeta(plan, customersById);
       const cso = resolveCsoMeta(plan, csosById);
 
@@ -254,7 +293,7 @@ export default function AdminTransactionsPage() {
         csoPhone: cso.phone || "—",
         monthKey,
         monthLabel: formatMonthLabel(monthKey),
-        deposited: Number(plan.totalDeposited || plan.totalPaid || 0),
+        deposited: Number(plan.totalDeposited || 0),
         withdrawn: Number(plan.totalWithdrawn || 0),
         savingsBalance: Number(plan.availableBalance || plan.balance || 0),
         loanAmount: 0,
@@ -267,7 +306,9 @@ export default function AdminTransactionsPage() {
   }, [adminPlans, customersById, csosById]);
 
   const loanRecords = useMemo(() => {
-    return (activeLoans || []).map((plan) => {
+    return (activeLoans || [])
+      .filter((plan) => isLoan(plan))
+      .map((plan) => {
       const customer = resolveCustomerMeta(plan, customersById);
       const cso = resolveCsoMeta(plan, csosById);
       const metrics = deriveLoanMetrics(plan);
@@ -294,9 +335,9 @@ export default function AdminTransactionsPage() {
         csoPhone: cso.phone || "—",
         monthKey,
         monthLabel: formatMonthLabel(monthKey),
-        deposited: Number(plan.totalDeposited || 0),
+        deposited: metrics.totalPaid,
         withdrawn: Number(plan.totalWithdrawn || 0),
-        savingsBalance: Number(plan.availableBalance || plan.balance || 0),
+        savingsBalance: 0,
         loanAmount: metrics.amount,
         loanBalance: metrics.balance,
         maintenanceFees,
@@ -365,6 +406,45 @@ export default function AdminTransactionsPage() {
     });
   }, [filteredRecords]);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedMonth, typeFilter, csoFilter, searchTerm]);
+
+  const totalRecords = sortedRecords.length;
+  const totalPages = Math.max(1, Math.ceil(totalRecords / (pageSize || 1)));
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  const paginatedRecords = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    return sortedRecords.slice(startIndex, startIndex + pageSize);
+  }, [sortedRecords, currentPage, pageSize]);
+
+  const canGoPrev = currentPage > 1;
+  const canGoNext = currentPage < totalPages;
+
+  const handlePageSizeChange = (event) => {
+    const nextSize = Number(event.target.value) || PAGE_SIZE_OPTIONS[0];
+    setPageSize(nextSize);
+    setCurrentPage(1);
+  };
+
+  const handlePrevPage = () => {
+    if (canGoPrev) {
+      setCurrentPage((prev) => Math.max(1, prev - 1));
+    }
+  };
+
+  const handleNextPage = () => {
+    if (canGoNext) {
+      setCurrentPage((prev) => Math.min(totalPages, prev + 1));
+    }
+  };
+
   const filteredTotals = useMemo(() => aggregateTotals(sortedRecords), [sortedRecords]);
   const overallTotals = useMemo(() => aggregateTotals(allRecords), [allRecords]);
 
@@ -376,8 +456,16 @@ export default function AdminTransactionsPage() {
 
   const hasError = adminPlansError || loansError || csosError || customersError;
 
-  const activeMonthLabel =
-    selectedMonth === "all" ? "All months" : monthOptions.find((option) => option.value === selectedMonth)?.label || "Selected month";
+  const dashboardTotals = dashboardOverview?.data || {};
+  const isFiltered = selectedMonth !== "all" || csoFilter !== "all" || searchTerm !== "" || typeFilter !== "all";
+
+  const displayTotals = isFiltered ? filteredTotals : {
+    deposited: dashboardTotals.totalDeposit || (Number(dashboardTotals.savingsDeposited || 0) + Number(dashboardTotals.loanRepaid || 0)) || overallTotals.deposited,
+    withdrawn: dashboardTotals.savingsWithdrawn || overallTotals.withdrawn,
+    savingsBalance: dashboardTotals.availableBalance || overallTotals.savingsBalance,
+    loanBalance: dashboardTotals.loanOutstanding || overallTotals.loanBalance,
+    totalFees: dashboardTotals.totalMaintenance || (Number(dashboardTotals.savingsFees || 0) + Number(dashboardTotals.loanFees || 0)) || overallTotals.totalFees,
+  };
 
   return (
     <div className="space-y-8 p-6">
@@ -398,26 +486,31 @@ export default function AdminTransactionsPage() {
         </button>
       </header>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Deposited</p>
-          <p className="mt-2 text-2xl font-semibold text-slate-900">{formatCurrency(filteredTotals.deposited)}</p>
-          <p className="text-xs text-slate-500">Across {activeMonthLabel.toLowerCase()}</p>
+          <p className="mt-2 text-2xl font-semibold text-slate-900">{formatCurrency(displayTotals.deposited)}</p>
+          <p className="text-xs text-slate-500">Gross inflow (Savings + Loans)</p>
         </article>
         <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Withdrawn</p>
-          <p className="mt-2 text-2xl font-semibold text-slate-900">{formatCurrency(filteredTotals.withdrawn)}</p>
-          <p className="text-xs text-slate-500">Funds paid out to customers</p>
+          <p className="mt-2 text-2xl font-semibold text-slate-900">{formatCurrency(displayTotals.withdrawn)}</p>
+          <p className="text-xs text-slate-500">Savings paid out to customers</p>
         </article>
         <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Savings balance</p>
-          <p className="mt-2 text-2xl font-semibold text-slate-900">{formatCurrency(filteredTotals.savingsBalance)}</p>
-          <p className="text-xs text-slate-500">Savings currently available</p>
+          <p className="mt-2 text-2xl font-semibold text-slate-900">{formatCurrency(displayTotals.savingsBalance)}</p>
+          <p className="text-xs text-slate-500">Current available savings</p>
         </article>
         <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Outstanding loans</p>
-          <p className="mt-2 text-2xl font-semibold text-slate-900">{formatCurrency(filteredTotals.loanBalance)}</p>
-          <p className="text-xs text-slate-500">Balance remaining with borrowers</p>
+          <p className="mt-2 text-2xl font-semibold text-slate-900">{formatCurrency(displayTotals.loanBalance)}</p>
+          <p className="text-xs text-slate-500">Principal balance remaining</p>
+        </article>
+        <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm border-primary/20 bg-primary/5">
+          <p className="text-xs font-semibold uppercase tracking-wide text-primary/70">Total fees</p>
+          <p className="mt-2 text-2xl font-semibold text-slate-900">{formatCurrency(displayTotals.totalFees)}</p>
+          <p className="text-xs text-primary/60">Combined revenue from fees</p>
         </article>
       </section>
 
@@ -498,7 +591,54 @@ export default function AdminTransactionsPage() {
               No transactions match your filters.
             </div>
           ) : (
-            <AllTransactionTable plans={sortedRecords} formatCurrency={formatCurrency} />
+            <>
+              <AllTransactionTable
+                plans={paginatedRecords}
+                formatCurrency={formatCurrency}
+                page={currentPage}
+                pageSize={pageSize}
+                totalCount={totalRecords}
+              />
+              <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <label className="flex items-center gap-2 text-sm text-slate-600">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Rows per page</span>
+                  <select
+                    value={pageSize}
+                    onChange={handlePageSizeChange}
+                    className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  >
+                    {PAGE_SIZE_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-4">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Page {Math.min(currentPage, totalPages).toLocaleString()} of {totalPages.toLocaleString()}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handlePrevPage}
+                      disabled={!canGoPrev}
+                      className="rounded-full border border-slate-200 px-4 py-1.5 text-sm font-semibold text-slate-600 transition hover:border-primary/40 hover:text-primary disabled:cursor-not-allowed disabled:border-slate-100 disabled:text-slate-300"
+                    >
+                      Previous
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleNextPage}
+                      disabled={!canGoNext}
+                      className="rounded-full border border-slate-200 px-4 py-1.5 text-sm font-semibold text-slate-600 transition hover:border-primary/40 hover:text-primary disabled:cursor-not-allowed disabled:border-slate-100 disabled:text-slate-300"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </>
           )}
         </div>
       </section>

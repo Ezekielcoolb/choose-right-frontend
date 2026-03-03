@@ -7,6 +7,9 @@ import {
   setSelectedCso,
   resetCsoStatus,
   updateCsoStatus,
+  updateCso,
+  fetchAdminCsoDetail,
+  deleteCso,
 } from "../../../redux/slices/csoSlice";
 import { fetchBranches } from "../../../redux/slices/branchSlice";
 import {
@@ -19,6 +22,7 @@ import {
   MapPin,
   ShieldAlert,
   ShieldCheck,
+  Trash2,
 } from "lucide-react";
 
 const defaultFormValues = {
@@ -307,12 +311,21 @@ export default function CsoPage() {
     mutationStatus,
     mutationError,
     lastActionId,
+    detailStatus,
+    detailError,
+    selectedCso,
+    selectedCsoCustomers,
   } = useSelector((state) => state.csos);
   const { items: branchItems, status: branchStatus } = useSelector((state) => state.branches);
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [visibleMenuId, setVisibleMenuId] = useState(null);
   const [handledActionId, setHandledActionId] = useState(null);
+  const [isTransferOpen, setIsTransferOpen] = useState(false);
+  const [transferTarget, setTransferTarget] = useState(null);
+  const [transferBranchId, setTransferBranchId] = useState("");
+  const [transferError, setTransferError] = useState("");
+  const [transferCustomersCount, setTransferCustomersCount] = useState(0);
 
   useEffect(() => {
     if (status === "idle") {
@@ -329,6 +342,7 @@ export default function CsoPage() {
   useEffect(() => {
     if (lastActionId && lastActionId !== handledActionId) {
       setIsCreateOpen(false);
+      setIsTransferOpen(false);
       setHandledActionId(lastActionId);
     }
   }, [lastActionId, handledActionId]);
@@ -356,6 +370,81 @@ export default function CsoPage() {
   const handleStatusToggle = (cso) => {
     dispatch(updateCsoStatus({ csoId: cso._id, isActive: !cso.isActive }));
   };
+
+  const handleDeleteCso = (csoId) => {
+    const confirmed = window.confirm("Are you sure you want to delete this CSO? This action cannot be undone.");
+    if (!confirmed) return;
+    dispatch(deleteCso(csoId));
+  };
+
+  const closeTransferModal = () => {
+    setIsTransferOpen(false);
+    setTransferTarget(null);
+    setTransferBranchId("");
+    setTransferCustomersCount(0);
+    setTransferError("");
+  };
+
+  const handleOpenTransfer = (cso) => {
+    setVisibleMenuId(null);
+    setTransferTarget(cso);
+    setTransferBranchId(cso.branchId || "");
+    setTransferCustomersCount(0);
+    setTransferError("");
+    setIsTransferOpen(true);
+    dispatch(fetchAdminCsoDetail(cso._id));
+  };
+
+  const handleTransferSubmit = async (event) => {
+    event.preventDefault();
+    if (!transferTarget?._id) {
+      setTransferError("Unable to determine the selected CSO. Please try again.");
+      return;
+    }
+
+    if (!transferBranchId) {
+      setTransferError("Select a destination branch.");
+      return;
+    }
+
+    if (transferBranchId === transferTarget.branchId) {
+      setTransferError("Select a different branch to proceed.");
+      return;
+    }
+
+    if (transferCustomersCount > 0) {
+      setTransferError("Transfer customers to another CSO before moving this officer.");
+      return;
+    }
+
+    setTransferError("");
+    dispatch(updateCso({ csoId: transferTarget._id, updates: { branchId: transferBranchId } }))
+      .unwrap()
+      .then(() => {
+        closeTransferModal();
+      })
+      .catch((errorMessage) => {
+        setTransferError(errorMessage || "Failed to transfer CSO. Please try again.");
+      });
+  };
+
+  const isDetailLoading = isTransferOpen && detailStatus === "loading";
+  const transferCustomersBlocked = isTransferOpen && transferCustomersCount > 0;
+  const isTransferring = isTransferOpen && mutationStatus === "loading";
+
+  useEffect(() => {
+    if (!isTransferOpen) {
+      return;
+    }
+
+    if (detailStatus === "succeeded" && selectedCso?._id === transferTarget?._id) {
+      setTransferCustomersCount((selectedCsoCustomers || []).length);
+    }
+
+    if (detailStatus === "failed") {
+      setTransferError(detailError || "Unable to load CSO details. Please try again.");
+    }
+  }, [isTransferOpen, detailStatus, selectedCso, transferTarget, selectedCsoCustomers, detailError]);
 
   const openCreateModal = () => {
     setIsCreateOpen(true);
@@ -469,10 +558,7 @@ export default function CsoPage() {
                 <button
                   type="button"
                   className="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
-                  onClick={() => {
-                    window.alert("Transfer workflow coming soon.");
-                    setVisibleMenuId(null);
-                  }}
+                  onClick={() => handleOpenTransfer(cso)}
                 >
                   Transfer
                 </button>
@@ -490,6 +576,18 @@ export default function CsoPage() {
                 >
                   {cso.isActive ? "Suspend" : "Activate"}
                 </button>
+                <div className="my-1 border-t border-slate-100" />
+                {/* <button
+                  type="button"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-600 transition hover:bg-red-50"
+                  onClick={() => {
+                    handleDeleteCso(cso._id);
+                    setVisibleMenuId(null);
+                  }}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete CSO
+                </button> */}
               </div>
             ) : null}
           </div>
@@ -560,6 +658,88 @@ export default function CsoPage() {
           submitting={mutationPending}
           branches={branchItems}
         />
+      </Modal>
+
+      <Modal
+        open={isTransferOpen}
+        title="Transfer CSO to another branch"
+        onClose={closeTransferModal}
+        widthClass="max-w-lg"
+      >
+        {!transferTarget ? (
+          <div className="flex items-center justify-center py-10 text-sm text-slate-500">
+            Select a CSO to continue.
+          </div>
+        ) : isDetailLoading ? (
+          <div className="flex items-center justify-center gap-2 py-12 text-sm text-slate-500">
+            <Loader2 className="h-5 w-5 animate-spin text-primary" /> Checking CSO details…
+          </div>
+        ) : (
+          <form className="space-y-6" onSubmit={handleTransferSubmit}>
+            <div className="space-y-3">
+              <p className="text-sm text-slate-500">
+                Move {transferTarget.firstName} {transferTarget.lastName} to a different branch.
+              </p>
+              {transferCustomersCount > 0 ? (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-700">
+                  <p className="font-semibold">Customers still assigned</p>
+                  <p className="mt-1">
+                    {transferTarget.firstName} currently manages {transferCustomersCount}{" "}
+                    {transferCustomersCount === 1 ? "customer" : "customers"}. Transfer or reassign these customers
+                    before moving the CSO to another branch.
+                  </p>
+                </div>
+              ) : null}
+            </div>
+
+            {transferError ? (
+              <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">
+                {transferError}
+              </div>
+            ) : null}
+
+            <div className="space-y-2">
+              <label htmlFor="transfer-branch" className="text-sm font-medium text-slate-600">
+                Destination branch
+              </label>
+              <select
+                id="transfer-branch"
+                value={transferBranchId}
+                onChange={(event) => setTransferBranchId(event.target.value)}
+                disabled={transferCustomersBlocked || isTransferring}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:bg-slate-100"
+                required
+              >
+                <option value="" disabled>
+                  Select a branch
+                </option>
+                {(branchItems || []).map((branch) => (
+                  <option key={branch._id} value={branch._id}>
+                    {branch.branchName}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={closeTransferModal}
+                className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-200"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={transferCustomersBlocked || isTransferring}
+                className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:bg-primary/40"
+              >
+                {isTransferring ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                Transfer
+              </button>
+            </div>
+          </form>
+        )}
       </Modal>
     </div>
   );

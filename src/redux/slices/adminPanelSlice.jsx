@@ -37,6 +37,19 @@ export const toggleSuspendAdminMember = createAsyncThunk(
   },
 );
 
+export const deleteAdminMember = createAsyncThunk(
+  "adminPanel/deleteMember",
+  async (id, thunkAPI) => {
+    try {
+      await apiClient.delete(`/admin/panel/${id}`);
+      return id;
+    } catch (error) {
+      return thunkAPI.rejectWithValue(error.response?.data?.message || error.message);
+    }
+  },
+);
+
+
 const initialState = {
   items: [],
   status: "idle",
@@ -97,6 +110,18 @@ const adminPanelSlice = createSlice({
         }
       })
       .addCase(toggleSuspendAdminMember.rejected, (state, action) => {
+        state.mutationStatus = "failed";
+        state.mutationError = action.payload;
+      })
+      .addCase(deleteAdminMember.pending, (state) => {
+        state.mutationStatus = "loading";
+        state.mutationError = null;
+      })
+      .addCase(deleteAdminMember.fulfilled, (state, action) => {
+        state.mutationStatus = "succeeded";
+        state.items = state.items.filter((item) => item._id !== action.payload);
+      })
+      .addCase(deleteAdminMember.rejected, (state, action) => {
         state.mutationStatus = "failed";
         state.mutationError = action.payload;
       });

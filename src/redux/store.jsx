@@ -9,6 +9,12 @@ import adminWithdrawalReducer from "./slices/adminWithdrawalSlice.jsx";
 import adminPanelReducer from "./slices/adminPanelSlice.jsx";
 import adminDashboardReducer from "./slices/adminDashboardSlice.jsx";
 import uploadReducer from "./slices/uploadSlice.jsx";
+import managerAuthReducer from "./slices/managerAuthSlice.jsx";
+import managerDataReducer from "./slices/managerDataSlice.jsx";
+import customerAuthReducer from "./slices/customerAuthSlice.jsx";
+import customerDataReducer from "./slices/customerDataSlice.jsx";
+import adminReportReducer from "./slices/adminReportSlice.jsx";
+import adminAuthReducer from "./slices/adminAuthSlice.jsx";
 
 const store = configureStore({
   reducer: {
@@ -22,6 +28,12 @@ const store = configureStore({
     adminPanel: adminPanelReducer,
     adminDashboard: adminDashboardReducer,
     upload: uploadReducer,
+    managerAuth: managerAuthReducer,
+    managerData: managerDataReducer,
+    customerAuth: customerAuthReducer,
+    customerData: customerDataReducer,
+    adminReport: adminReportReducer,
+    adminAuth: adminAuthReducer,
   },
 });
 

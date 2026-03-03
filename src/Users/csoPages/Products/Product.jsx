@@ -372,7 +372,7 @@ export default function ProductPage() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {activeTab === "savings" ? (
             <>
-              <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4">
+              {/* <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600">Total saved</p>
                 <p className="mt-2 text-xl font-bold text-emerald-700">{formatCurrency(savingsSummary.totalDeposited)}</p>
               </div>
@@ -387,7 +387,7 @@ export default function ProductPage() {
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Remaining balance</p>
                 <p className="mt-2 text-xl font-bold text-slate-900">{formatCurrency(savingsSummary.remainingBalance)}</p>
-              </div>
+              </div> */}
             </>
           ) : (
             <>

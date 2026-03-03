@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { ArrowLeft, ArrowRight, CalendarDays, Loader2 } from "lucide-react";
 
-import { fetchAdminSavingsPlans, fetchSavingsEntries } from "../../../redux/slices/savingsSlice";
+import { fetchAdminSavingsPlans, fetchAdminPlanEntries } from "../../../redux/slices/savingsSlice";
 import { fetchActiveLoans } from "../../../redux/slices/adminLoanSlice";
 
 const currencyFormatter = new Intl.NumberFormat("en-NG", {
@@ -208,7 +208,14 @@ export default function BusinessReportPage() {
         return;
       }
 
-      dispatch(fetchSavingsEntries({ planId, page: 1, limit: 500 }));
+      dispatch(
+        fetchAdminPlanEntries({
+          customerId: plan.customerId?._id || plan.customerId,
+          planId,
+          page: 1,
+          limit: 500,
+        }),
+      );
     });
   }, [adminPlans, activeLoans, entriesByPlan, dispatch]);
 

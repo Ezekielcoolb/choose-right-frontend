@@ -33,6 +33,8 @@ const statusConfig = {
   },
 };
 
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
+
 function formatAmount(value) {
   return `₦${Number(value || 0).toLocaleString()}`;
 }
@@ -155,6 +157,8 @@ export default function WithdrawalRequest() {
     (state) => state.adminWithdrawals,
   );
   const [selectedRequest, setSelectedRequest] = useState(null);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     dispatch(fetchAdminWithdrawalRequests());
@@ -182,6 +186,7 @@ export default function WithdrawalRequest() {
     if (filter === statusFilter && status === "succeeded") {
       return;
     }
+    setCurrentPage(1);
     dispatch(fetchAdminWithdrawalRequests(filter));
   };
 
@@ -220,6 +225,39 @@ export default function WithdrawalRequest() {
       .catch((err) => {
         toast.error(err || "Unable to reject withdrawal");
       });
+  };
+
+  const totalRecords = items.length;
+  const totalPages = Math.max(1, Math.ceil(totalRecords / (pageSize || 1)));
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [statusFilter, pageSize]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  const sliceStart = (currentPage - 1) * pageSize;
+  const paginatedItems = items.slice(sliceStart, sliceStart + pageSize);
+  const startRange = totalRecords === 0 ? 0 : sliceStart + 1;
+  const endRange = Math.min(totalRecords, sliceStart + paginatedItems.length);
+
+  const canGoPrev = currentPage > 1;
+  const canGoNext = currentPage < totalPages;
+
+  const handlePrevPage = () => {
+    if (canGoPrev) {
+      setCurrentPage((prev) => Math.max(1, prev - 1));
+    }
+  };
+
+  const handleNextPage = () => {
+    if (canGoNext) {
+      setCurrentPage((prev) => Math.min(totalPages, prev + 1));
+    }
   };
 
   return (
@@ -269,7 +307,7 @@ export default function WithdrawalRequest() {
           No {statusFilter} withdrawal requests found.
         </div>
       ) : (
-        <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-x-auto rounded-3xl border border-slate-200 bg-white shadow-sm">
           <table className="min-w-full divide-y divide-slate-200 text-sm">
             <thead className="bg-slate-50">
               <tr>
@@ -283,7 +321,7 @@ export default function WithdrawalRequest() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {items.map((request) => {
+              {paginatedItems.map((request) => {
                 const info = statusConfig[request.status] || statusConfig.pending;
                 return (
                   <tr key={request._id} className="hover:bg-slate-50">
@@ -341,6 +379,48 @@ export default function WithdrawalRequest() {
               })}
             </tbody>
           </table>
+          <div className="flex flex-col gap-3 border-t border-slate-200 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+            <label className="flex items-center gap-2 text-sm font-semibold normal-case text-slate-600">
+              <span className="text-xs uppercase tracking-wide text-slate-500">Rows per page</span>
+              <select
+                value={pageSize}
+                onChange={(event) => setPageSize(Number(event.target.value) || PAGE_SIZE_OPTIONS[0])}
+                className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              >
+                {PAGE_SIZE_OPTIONS.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-4">
+              {totalRecords === 0
+                ? "No requests to display"
+                : `Showing ${startRange.toLocaleString()}–${endRange.toLocaleString()} of ${totalRecords.toLocaleString()} request${totalRecords === 1 ? "" : "s"}`}
+              <div className="flex items-center gap-2 text-xs font-semibold">
+                <button
+                  type="button"
+                  onClick={handlePrevPage}
+                  disabled={!canGoPrev}
+                  className="rounded-full border border-slate-200 px-4 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-primary/40 hover:text-primary disabled:cursor-not-allowed disabled:border-slate-100 disabled:text-slate-300"
+                >
+                  Previous
+                </button>
+                <span>
+                  Page {Math.min(currentPage, totalPages).toLocaleString()} of {totalPages.toLocaleString()}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleNextPage}
+                  disabled={!canGoNext}
+                  className="rounded-full border border-slate-200 px-4 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-primary/40 hover:text-primary disabled:cursor-not-allowed disabled:border-slate-100 disabled:text-slate-300"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

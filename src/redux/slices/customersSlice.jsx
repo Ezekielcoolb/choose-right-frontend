@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk, nanoid } from "@reduxjs/toolkit";
 import apiClient from "../../api/client";
+import { logoutCso } from "./csoAuthSlice.jsx";
 
 const buildQueryString = (params = {}) => {
   const query = new URLSearchParams();
@@ -108,7 +109,25 @@ export const deleteCustomer = createAsyncThunk(
   },
 );
 
-const initialState = {
+export const deleteCustomers = createAsyncThunk(
+  "customers/bulkDelete",
+  async (payload, thunkAPI) => {
+    try {
+      const { customerIds, admin } = payload;
+      if (!Array.isArray(customerIds) || customerIds.length === 0) {
+        throw new Error("Customer IDs are required");
+      }
+
+      const endpoint = admin ? "/admin/customers/bulk-delete" : "/customers/bulk-delete";
+      await apiClient.post(endpoint, { customerIds });
+      return { customerIds };
+    } catch (error) {
+      return thunkAPI.rejectWithValue(error.response?.data?.message || error.message);
+    }
+  },
+);
+
+const createInitialState = () => ({
   items: [],
   pagination: { page: 1, limit: 20, total: 0, pages: 0 },
   status: "idle",
@@ -117,8 +136,11 @@ const initialState = {
   mutationError: null,
   selectedCustomer: null,
   savingsPlansByCustomer: {},
+  totals: { totalPlans: 0, activePlans: 0, totalDeposited: 0, availableBalance: 0, totalFees: 0, totalWithdrawn: 0 },
   lastActionId: null,
-};
+});
+
+const initialState = createInitialState();
 
 const customersSlice = createSlice({
   name: "customers",
@@ -129,6 +151,7 @@ const customersSlice = createSlice({
       state.mutationError = null;
       state.selectedCustomer = null;
     },
+    resetCustomersState: () => createInitialState(),
   },
   extraReducers: (builder) => {
     builder
@@ -140,6 +163,7 @@ const customersSlice = createSlice({
         state.status = "succeeded";
         state.items = action.payload.items;
         state.pagination = action.payload.pagination;
+        state.totals = action.payload.totals || state.totals;
       })
       .addCase(fetchCustomers.rejected, (state, action) => {
         state.status = "failed";
@@ -207,6 +231,26 @@ const customersSlice = createSlice({
         state.mutationStatus = "failed";
         state.mutationError = action.payload || action.error.message;
       })
+      .addCase(deleteCustomers.pending, (state) => {
+        state.mutationStatus = "loading";
+        state.mutationError = null;
+      })
+      .addCase(deleteCustomers.fulfilled, (state, action) => {
+        state.mutationStatus = "succeeded";
+        const deletedIds = action.payload.customerIds;
+        state.items = state.items.filter((customer) => !deletedIds.includes(customer._id));
+        deletedIds.forEach((id) => {
+          delete state.savingsPlansByCustomer[id];
+        });
+        if (state.selectedCustomer && deletedIds.includes(state.selectedCustomer._id)) {
+          state.selectedCustomer = null;
+        }
+        state.lastActionId = nanoid();
+      })
+      .addCase(deleteCustomers.rejected, (state, action) => {
+        state.mutationStatus = "failed";
+        state.mutationError = action.payload || action.error.message;
+      })
       .addCase(archiveCustomer.fulfilled, (state, action) => {
         const idx = state.items.findIndex((customer) => customer._id === action.payload._id);
         if (idx !== -1) {
@@ -220,10 +264,11 @@ const customersSlice = createSlice({
       .addCase(archiveCustomer.rejected, (state, action) => {
         state.mutationStatus = "failed";
         state.mutationError = action.payload || action.error.message;
-      });
+      })
+      .addCase(logoutCso, () => createInitialState());
   },
 });
 
-export const { clearCustomerState } = customersSlice.actions;
+export const { clearCustomerState, resetCustomersState } = customersSlice.actions;
 
 export default customersSlice.reducer;

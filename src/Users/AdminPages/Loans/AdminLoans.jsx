@@ -16,15 +16,13 @@ const normalizeLoanStats = (plan) => {
     loanDetails.amount ?? loanDetails.requestedAmount ?? plan?.loanAmount ?? (plan?.dailyContribution ? plan.dailyContribution * 30 : 0),
   );
 
-  const savingsMaintenanceCandidate = Number(plan.maintenanceFee || 0);
-  const recordedMaintenance = Number(plan.totalFees || 0);
-  const loanMaintenanceCandidate = Number(
+  const maintenanceFee = Number(plan.totalFees || plan.maintenanceFee || 0);
+  const loanFee = Number(
     loanDetails.maintenanceFee ??
-      (loanDetails.maintenanceFeePaid ? plan.dailyContribution ?? plan.maintenanceFee ?? 0 : 0),
-  );
-  const maintenanceFee = Math.max(
-    recordedMaintenance,
-    savingsMaintenanceCandidate + loanMaintenanceCandidate,
+      loanDetails.processingFee ??
+      loanDetails.serviceCharge ??
+      plan?.loanFees ??
+      0,
   );
 
   const loanRepaymentTotal = Number(
@@ -38,7 +36,7 @@ const normalizeLoanStats = (plan) => {
   );
 
   const combinedDeposits = Number(plan.totalDeposited || 0) + loanRepaymentTotal;
-  const totalPaid = Math.max(0, combinedDeposits - maintenanceFee);
+  const totalPaid = Math.max(0, combinedDeposits - (maintenanceFee + loanFee));
 
   const balance = Number(
     loanDetails.balance ?? loanDetails.outstanding ?? loanDetails.loanBalance ?? baseAmount - totalPaid,
@@ -47,6 +45,7 @@ const normalizeLoanStats = (plan) => {
   return {
     amount: baseAmount,
     maintenanceFee,
+    loanFee,
     totalPaid,
     balance: balance < 0 ? 0 : balance,
   };
@@ -155,11 +154,12 @@ export default function AdminLoans() {
         acc.totalAmount += plan.stats.amount;
         acc.totalDeposited += Number(plan.totalDeposited || 0);
         acc.totalMaintenance += plan.stats.maintenanceFee;
+        acc.totalLoanFees += plan.stats.loanFee;
         acc.totalPaid += plan.stats.totalPaid;
         acc.totalBalance += plan.stats.balance;
         return acc;
       },
-      { totalAmount: 0, totalDeposited: 0, totalMaintenance: 0, totalPaid: 0, totalBalance: 0 },
+      { totalAmount: 0, totalDeposited: 0, totalMaintenance: 0, totalLoanFees: 0, totalPaid: 0, totalBalance: 0 },
     );
   }, [filteredLoans]);
 
@@ -200,9 +200,11 @@ export default function AdminLoans() {
           <p className="text-xs text-slate-500">Combined deposits collected across plans</p>
         </article>
         <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Maintenance fees</p>
-          <p className="mt-2 text-2xl font-semibold text-slate-900">{formatCurrency(summary.totalMaintenance)}</p>
-          <p className="text-xs text-slate-500">Total maintenance fees collected</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Total fees</p>
+          <p className="mt-2 text-2xl font-semibold text-slate-900">
+            {formatCurrency(summary.totalMaintenance + summary.totalLoanFees)}
+          </p>
+          <p className="text-xs text-slate-500">Combined Maintenance & Loan fees</p>
         </article>
         <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Total paid</p>
@@ -294,11 +296,11 @@ export default function AdminLoans() {
                     <th className="whitespace-nowrap px-4 py-3 text-left font-semibold">Plan</th>
                     <th className="whitespace-nowrap px-4 py-3 text-left font-semibold">Status</th>
                     <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">Loan amount</th>
-                    <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">Total deposited</th>
-                    <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">Maintenance fee</th>
+                    <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">Deposited</th>
+                    <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">M. Fee</th>
+                    <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">Loan Fee</th>
                     <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">Total paid</th>
                     <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">Balance</th>
-                   
                     <th className="whitespace-nowrap px-4 py-3 text-left font-semibold">Request date</th>
                     {/* <th className="whitespace-nowrap px-4 py-3 text-left font-semibold">Approval date</th> */}
                     {/* <th className="whitespace-nowrap px-4 py-3 text-right font-semibold">Actions</th> */}
@@ -335,8 +337,11 @@ export default function AdminLoans() {
                       <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-slate-900">
                         {formatCurrency(plan.totalDeposited || 0)}
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-slate-900">
-                        {formatCurrency(plan.stats.maintenanceFee)}
+                      <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-slate-400">
+                        {plan.stats.maintenanceFee > 0 ? formatCurrency(plan.stats.maintenanceFee) : "—"}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-slate-400">
+                        {plan.stats.loanFee > 0 ? formatCurrency(plan.stats.loanFee) : "—"}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-slate-900">
                         {formatCurrency(plan.stats.totalPaid)}

@@ -1,0 +1,28 @@
+<IfModule mod_headers.c>
+  <FilesMatch "\.(png|jpe?g|gif|webp|svg|pdf)$">
+    Header set Access-Control-Allow-Origin "*"
+    Header set Access-Control-Allow-Methods "GET, OPTIONS"
+    Header set Access-Control-Allow-Headers "Content-Type, Authorization"
+    Header set Access-Control-Expose-Headers "Content-Type, Content-Length, ETag"
+  </FilesMatch>
+</IfModule>
+
+# Disable MultiViews to prevent Apache from searching for files with similar names
+Options -MultiViews
+
+# React Router SPA Configuration
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+  
+  # If the requested filename exists as a file or directory, serve it directly
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+  
+  # Otherwise, rewrite everything else to index.html
+  RewriteRule ^ index.html [L]
+</IfModule>
+
+# Fallback for 404 errors
+ErrorDocument 404 /index.html

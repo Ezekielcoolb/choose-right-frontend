@@ -3,13 +3,15 @@ import { useDispatch, useSelector } from "react-redux";
 import { fetchPendingLoans, approveAdminLoan, rejectAdminLoan } from "../../../redux/slices/adminLoanSlice";
 import { Loader2, CheckCircle2, XCircle, Eye } from "lucide-react";
 import { toast } from "react-hot-toast";
+// import { BASE_URL } from "../../../api/client";
 
 function LoanDetailsModal({ open, plan, onClose }) {
   if (!open || !plan) return null;
 
-  const { loanDetails } = plan;
+  const loanDetails = plan.loanRequest || plan.loanDetails || {};
   const guarantor = loanDetails?.guarantor || {};
 
+  const BASE_URL = "https://api.hichooseright.com"
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4 py-10">
       <div className="relative w-full max-w-2xl rounded-3xl bg-white shadow-2xl">
@@ -32,7 +34,7 @@ function LoanDetailsModal({ open, plan, onClose }) {
                <p className="text-xs font-medium uppercase text-slate-500">Plan</p>
                <p className="font-semibold">{plan.planName}</p>
                <p className="text-sm text-slate-500">Daily: ₦{plan.dailyContribution?.toLocaleString()}</p>
-               <p className="text-sm text-slate-500">Request Amount: ₦{(plan.dailyContribution * 30).toLocaleString()}</p>
+               <p className="text-sm text-slate-500">Request Amount: ₦{(loanDetails.amount || plan.dailyContribution * 30).toLocaleString()}</p>
              </div>
            </div>
 
@@ -48,8 +50,6 @@ function LoanDetailsModal({ open, plan, onClose }) {
 
            <div>
              <h3 className="mb-3 font-semibold text-slate-900">Customer Signature</h3>
-import { BASE_URL } from "../../../api/client";
-...
              {loanDetails?.customerSignature ? (
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-2">
                    <img src={`${BASE_URL}${loanDetails.customerSignature}`} alt="Customer Signature" className="h-40 object-contain mx-auto" />
@@ -64,10 +64,14 @@ import { BASE_URL } from "../../../api/client";
   );
 }
 
+const PAGE_SIZE_OPTIONS = [10, 25, 50];
+
 export default function AdminNewLoans() {
   const dispatch = useDispatch();
   const { pendingLoans, status, mutationStatus } = useSelector((state) => state.adminLoans);
   const [selectedPlan, setSelectedPlan] = useState(null);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     dispatch(fetchPendingLoans());
@@ -93,6 +97,41 @@ export default function AdminNewLoans() {
 
   const isLoading = status === "loading";
   const isMutating = mutationStatus === "loading";
+  const totalRecords = pendingLoans.length;
+  const totalPages = Math.max(1, Math.ceil(totalRecords / (pageSize || 1)));
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [pageSize]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  const paginatedLoans = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    return pendingLoans.slice(startIndex, startIndex + pageSize);
+  }, [pendingLoans, currentPage, pageSize]);
+
+  const startIndex = totalRecords === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const endIndex = Math.min(totalRecords, (currentPage - 1) * pageSize + paginatedLoans.length);
+
+  const canGoPrev = currentPage > 1;
+  const canGoNext = currentPage < totalPages;
+
+  const handlePrev = () => {
+    if (canGoPrev) {
+      setCurrentPage((prev) => Math.max(1, prev - 1));
+    }
+  };
+
+  const handleNext = () => {
+    if (canGoNext) {
+      setCurrentPage((prev) => Math.min(totalPages, prev + 1));
+    }
+  };
 
   return (
     <div className="space-y-6 p-6">
@@ -115,7 +154,7 @@ export default function AdminNewLoans() {
       )}
 
       {!isLoading && pendingLoans.length > 0 && (
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
@@ -123,22 +162,30 @@ export default function AdminNewLoans() {
                 <th className="px-4 py-3 font-semibold text-slate-700">Customer</th>
                 <th className="px-4 py-3 font-semibold text-slate-700">Plan</th>
                 <th className="px-4 py-3 font-semibold text-slate-700">Amount</th>
+                <th className="px-4 py-3 font-semibold text-slate-700">M. Fee</th>
+                <th className="px-4 py-3 font-semibold text-slate-700">Loan Fee</th>
                 <th className="px-4 py-3 font-semibold text-slate-700">CSO</th>
                 <th className="px-4 py-3 font-semibold text-slate-700 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {pendingLoans.map((plan) => (
+              {paginatedLoans.map((plan) => (
                 <tr key={plan._id} className="hover:bg-slate-50">
                   <td className="px-4 py-3 text-slate-600">
-                    {new Date(plan.loanDetails?.requestDate || plan.updatedAt).toLocaleDateString()}
+                    {new Date((plan.loanRequest?.requestDate || plan.loanDetails?.requestDate) || plan.updatedAt).toLocaleDateString()}
                   </td>
                   <td className="px-4 py-3 font-medium text-slate-900">
                     {plan.customerId?.firstName} {plan.customerId?.lastName}
                   </td>
                   <td className="px-4 py-3 text-slate-600">{plan.planName}</td>
-                  <td className="px-4 py-3 font-semibold text-slate-900">
-                    ₦{(plan.dailyContribution * 30).toLocaleString()}
+                  <td className="px-4 py-3 text-slate-600">
+                    ₦{(plan.loanRequest?.amount || plan.loanDetails?.amount || plan.dailyContribution * 30).toLocaleString()}
+                  </td>
+                  <td className="px-4 py-3 text-slate-400 font-semibold">
+                    {plan.maintenanceFee ? `₦${plan.maintenanceFee.toLocaleString()}` : "—"}
+                  </td>
+                  <td className="px-4 py-3 text-slate-400 font-semibold">
+                    {plan.loanRequest?.maintenanceFee ? `₦${plan.loanRequest.maintenanceFee.toLocaleString()}` : "—"}
                   </td>
                   <td className="px-4 py-3 text-slate-600">
                      {plan.csoId?.firstName} {plan.csoId?.lastName}
@@ -174,6 +221,48 @@ export default function AdminNewLoans() {
               ))}
             </tbody>
           </table>
+          <div className="flex flex-col gap-3 border-t border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <label className="flex items-center gap-2 text-sm text-slate-600">
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Rows per page</span>
+              <select
+                value={pageSize}
+                onChange={(event) => setPageSize(Number(event.target.value) || PAGE_SIZE_OPTIONS[0])}
+                className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              >
+                {PAGE_SIZE_OPTIONS.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="flex flex-col items-start gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500 sm:flex-row sm:items-center sm:gap-4">
+              {totalRecords === 0
+                ? "No records to display"
+                : `Showing ${startIndex.toLocaleString()}–${endIndex.toLocaleString()} of ${totalRecords.toLocaleString()} request${totalRecords === 1 ? "" : "s"}`}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handlePrev}
+                  disabled={!canGoPrev}
+                  className="rounded-full border border-slate-200 px-4 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-primary/40 hover:text-primary disabled:cursor-not-allowed disabled:border-slate-100 disabled:text-slate-300"
+                >
+                  Previous
+                </button>
+                <span className="text-xs font-semibold text-slate-500">
+                  Page {Math.min(currentPage, totalPages).toLocaleString()} of {totalPages.toLocaleString()}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleNext}
+                  disabled={!canGoNext}
+                  className="rounded-full border border-slate-200 px-4 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-primary/40 hover:text-primary disabled:cursor-not-allowed disabled:border-slate-100 disabled:text-slate-300"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

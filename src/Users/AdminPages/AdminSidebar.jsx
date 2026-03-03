@@ -20,7 +20,7 @@ import { FaExchangeAlt, FaUserShield } from "react-icons/fa";
 const primaryNav = [
   {
     label: "Dashboard",
-    to: "/admin/dashboard",
+    to: "/admin",
     icon: LayoutDashboard,
   },
   {
@@ -58,6 +58,8 @@ const primaryNav = [
     to: "/admin/transactions",
     icon: FaExchangeAlt,
   },
+
+  
   {
     label: "Admin Panel",
     to: "/admin/panel",

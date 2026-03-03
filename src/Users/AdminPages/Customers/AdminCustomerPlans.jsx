@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate, useParams } from "react-router-dom";
-import { Loader2, ArrowLeft, Filter, Search, TrendingUp, TrendingDown, X } from "lucide-react";
+import { Loader2, ArrowLeft, Filter, Search, TrendingUp, TrendingDown } from "lucide-react";
 import { fetchCustomerById, clearCustomerState } from "../../../redux/slices/customersSlice";
-import { fetchSavingsPlans } from "../../../redux/slices/savingsSlice";
+import { fetchAdminSavingsPlans } from "../../../redux/slices/savingsSlice";
 
 const PAGE_SIZE = 10;
 
@@ -91,24 +91,32 @@ export default function AdminCustomerPlans() {
   const { selectedCustomer, savingsPlansByCustomer, mutationStatus, mutationError } = useSelector(
     (state) => state.customers,
   );
-  const { plansByCustomer, plansStatus, plansError } = useSelector((state) => state.savings);
+  const { adminPlans, adminPlansStatus, adminPlansError } = useSelector((state) => state.savings);
 
   const [filter, setFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [page, setPage] = useState(1);
-  const [activePlan, setActivePlan] = useState(null);
 
   useEffect(() => {
     if (!customerId) return;
-    dispatch(fetchCustomerById(customerId));
-    dispatch(fetchSavingsPlans({ customerId }));
+    dispatch(fetchCustomerById({ customerId, admin: true }));
+    dispatch(fetchAdminSavingsPlans());
 
     return () => {
       dispatch(clearCustomerState());
     };
   }, [customerId, dispatch]);
 
-  const plansSource = savingsPlansByCustomer?.[customerId] || plansByCustomer?.[customerId] || [];
+  const adminPlansForCustomer = useMemo(() => {
+    if (!customerId) return [];
+    return adminPlans.filter((plan) => {
+      const planCustomerId =
+        (plan.customerId && typeof plan.customerId === "object" && plan.customerId._id) || plan.customerId;
+      return planCustomerId?.toString() === customerId;
+    });
+  }, [adminPlans, customerId]);
+
+  const plansSource = savingsPlansByCustomer?.[customerId] || adminPlansForCustomer;
 
   const decoratedPlans = useMemo(() => {
     return plansSource.map((plan) => {
@@ -190,15 +198,7 @@ export default function AdminCustomerPlans() {
     );
   }, [filteredPlans]);
 
-  const loading = (plansStatus === "loading" || mutationStatus === "loading") && !decoratedPlans.length;
-
-  const openPlanDetails = useCallback((plan) => {
-    setActivePlan(plan);
-  }, []);
-
-  const closePlanDetails = useCallback(() => {
-    setActivePlan(null);
-  }, []);
+  const loading = (adminPlansStatus === "loading" || mutationStatus === "loading") && !decoratedPlans.length;
 
   return (
     <div className="space-y-6 p-6">
@@ -282,9 +282,9 @@ export default function AdminCustomerPlans() {
             <div className="flex min-h-[240px] items-center justify-center text-sm text-slate-500">
               <Loader2 className="mr-2 h-5 w-5 animate-spin text-primary" /> Loading plans…
             </div>
-          ) : plansError || mutationError ? (
+          ) : adminPlansError || mutationError ? (
             <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">
-              {plansError || mutationError}
+              {adminPlansError || mutationError}
             </div>
           ) : !filteredPlans.length ? (
             <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 py-12 text-center text-sm text-slate-500">
@@ -301,23 +301,14 @@ export default function AdminCustomerPlans() {
                   <th className="px-4 py-3 text-right font-semibold">Withdrawn</th>
                   <th className="px-4 py-3 text-right font-semibold">Balance</th>
                   <th className="px-4 py-3 text-left font-semibold">Start date</th>
+                  <th className="px-4 py-3 text-right font-semibold">Details</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {visiblePlans.map((plan) => (
                   <tr
                     key={plan._id}
-                    tabIndex={0}
-                    role="button"
-                    aria-label={`View details for ${plan.planName || "plan"}`}
-                    onClick={() => openPlanDetails(plan)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        openPlanDetails(plan);
-                      }
-                    }}
-                    className="cursor-pointer transition hover:bg-slate-50/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                    className="transition hover:bg-slate-50/70"
                   >
                     <td className="px-4 py-3">
                       <p className="font-semibold text-slate-900">{plan.planName || "Savings plan"}</p>
@@ -344,6 +335,15 @@ export default function AdminCustomerPlans() {
                       {formatCurrency(plan.isLoanPlan ? plan.loanBalance : plan.balance)}
                     </td>
                     <td className="px-4 py-3 text-slate-600">{formatDate(plan.startDate)}</td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/admin/customers/${customerId}/plans/${plan._id}`)}
+                        className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-primary/40 hover:text-primary"
+                      >
+                        View details
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -358,114 +358,6 @@ export default function AdminCustomerPlans() {
         </div>
       </section>
 
-      {activePlan ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 px-4 py-6">
-          <div className="w-full max-w-2xl rounded-3xl border border-slate-200 bg-white shadow-2xl">
-            <header className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Plan details</p>
-                <h2 className="text-lg font-semibold text-slate-900">{activePlan.planName || "Savings plan"}</h2>
-              </div>
-              <button
-                type="button"
-                onClick={closePlanDetails}
-                className="rounded-full border border-slate-200 p-2 text-slate-500 hover:border-primary/50 hover:text-primary"
-                aria-label="Close plan details"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </header>
-
-            <div className="grid gap-6 px-6 py-6 md:grid-cols-2">
-              <div className="space-y-4">
-                <dl className="grid gap-3">
-                  <div>
-                    <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Plan type</dt>
-                    <dd className="mt-1 text-sm font-medium text-slate-900">{activePlan.isLoanPlan ? "Loan" : "Savings"}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Status</dt>
-                    <dd className="mt-1 text-sm font-medium text-slate-900">{toTitleCase(activePlan.status)}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Start date</dt>
-                    <dd className="mt-1 text-sm font-medium text-slate-900">{formatDate(activePlan.startDate)}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Daily contribution</dt>
-                    <dd className="mt-1 text-sm font-medium text-slate-900">{formatCurrency(activePlan.dailyContribution)}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Deposited</dt>
-                    <dd className="mt-1 text-sm font-medium text-slate-900">{formatCurrency(activePlan.deposits)}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Maintenance fees</dt>
-                    <dd className="mt-1 text-sm font-medium text-slate-900">{formatCurrency(activePlan.maintenance)}</dd>
-                  </div>
-                </dl>
-              </div>
-
-              <div className="space-y-4">
-                <dl className="grid gap-3">
-                  <div>
-                    <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Available balance</dt>
-                    <dd className="mt-1 text-sm font-medium text-slate-900">
-                      {formatCurrency(activePlan.balance)}
-                    </dd>
-                  </div>
-                  {!activePlan.isLoanPlan ? (
-                    <div>
-                      <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Total withdrawn</dt>
-                      <dd className="mt-1 text-sm font-medium text-slate-900">{formatCurrency(activePlan.withdrawn)}</dd>
-                    </div>
-                  ) : null}
-                  {activePlan.isLoanPlan ? (
-                    <>
-                      <div>
-                        <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Loan principal</dt>
-                        <dd className="mt-1 text-sm font-medium text-slate-900">
-                          {formatCurrency(activePlan.loanDetails?.amount || activePlan.loanAmount || 0)}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Outstanding balance</dt>
-                        <dd className="mt-1 text-sm font-medium text-slate-900">
-                          {formatCurrency(activePlan.loanBalance)}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Loan status</dt>
-                        <dd className="mt-1 text-sm font-medium text-slate-900">
-                          {toTitleCase(activePlan.loanDetails?.status || activePlan.loanStatus)}
-                        </dd>
-                      </div>
-                    </>
-                  ) : null}
-                  <div>
-                    <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Plan ID</dt>
-                    <dd className="mt-1 text-xs font-mono text-slate-500">{activePlan._id}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Last updated</dt>
-                    <dd className="mt-1 text-sm font-medium text-slate-900">{formatDate(activePlan.updatedAt || activePlan.endDate)}</dd>
-                  </div>
-                </dl>
-              </div>
-            </div>
-
-            <footer className="flex justify-end border-t border-slate-100 px-6 py-4">
-              <button
-                type="button"
-                onClick={closePlanDetails}
-                className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:border-primary/40 hover:text-primary"
-              >
-                Close
-              </button>
-            </footer>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }

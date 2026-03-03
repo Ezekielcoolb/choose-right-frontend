@@ -31,6 +31,16 @@ export const fetchCsoProfile = createAsyncThunk("csoAuth/me", async (_, thunkAPI
   }
 });
 
+export const fetchCsoDashboardDetail = createAsyncThunk("csoAuth/fetchDashboardDetail", async (_, thunkAPI) => {
+  try {
+    const response = await apiClient.get("/cso-auth/dashboard-detail");
+    return response.data;
+  } catch (error) {
+    return thunkAPI.rejectWithValue(error.response?.data?.message || error.message);
+  }
+});
+
+
 export const changeCsoPassword = createAsyncThunk(
   "csoAuth/changePassword",
   async ({ currentPassword, newPassword }, thunkAPI) => {
@@ -43,15 +53,33 @@ export const changeCsoPassword = createAsyncThunk(
   },
 );
 
+export const forgotPassword = createAsyncThunk(
+  "csoAuth/forgotPassword",
+  async ({ identifier, newPassword }, thunkAPI) => {
+    try {
+      const response = await apiClient.post("/cso-auth/forgot-password", { identifier, newPassword });
+      return response.data;
+    } catch (error) {
+      return thunkAPI.rejectWithValue(error.response?.data?.message || error.message);
+    }
+  },
+);
+
+
+
 const initialState = {
   token: getInitialToken(),
   profile: null,
+  dashboardCustomers: [],
+  dashboardPlans: [],
+  dashboardEntries: [],
   status: "idle",
   error: null,
   passwordStatus: "idle",
   passwordError: null,
   passwordMessage: null,
 };
+
 
 const csoAuthSlice = createSlice({
   name: "csoAuth",
@@ -65,7 +93,13 @@ const csoAuthSlice = createSlice({
       persistToken(null);
       setAuthToken(null);
     },
+    resetPasswordStatus(state) {
+      state.passwordStatus = "idle";
+      state.passwordError = null;
+      state.passwordMessage = null;
+    },
   },
+
   extraReducers: (builder) => {
     builder
       .addCase(loginCso.pending, (state) => {
@@ -102,6 +136,21 @@ const csoAuthSlice = createSlice({
           setAuthToken(null);
         }
       })
+      .addCase(fetchCsoDashboardDetail.pending, (state) => {
+        state.status = "loading";
+        state.error = null;
+      })
+      .addCase(fetchCsoDashboardDetail.fulfilled, (state, action) => {
+        state.status = "succeeded";
+        state.dashboardCustomers = action.payload.customers || [];
+        state.dashboardPlans = action.payload.plans || [];
+        state.dashboardEntries = action.payload.entries || [];
+      })
+      .addCase(fetchCsoDashboardDetail.rejected, (state, action) => {
+        state.status = "failed";
+        state.error = action.payload || action.error.message;
+      })
+
       .addCase(changeCsoPassword.pending, (state) => {
         state.passwordStatus = "loading";
         state.passwordError = null;
@@ -114,10 +163,25 @@ const csoAuthSlice = createSlice({
       .addCase(changeCsoPassword.rejected, (state, action) => {
         state.passwordStatus = "failed";
         state.passwordError = action.payload || action.error.message;
+      })
+      .addCase(forgotPassword.pending, (state) => {
+        state.passwordStatus = "loading";
+        state.passwordError = null;
+        state.passwordMessage = null;
+      })
+      .addCase(forgotPassword.fulfilled, (state, action) => {
+        state.passwordStatus = "succeeded";
+        state.passwordMessage = action.payload?.message || "Password reset instructions sent";
+      })
+      .addCase(forgotPassword.rejected, (state, action) => {
+        state.passwordStatus = "failed";
+        state.passwordError = action.payload || action.error.message;
       });
   },
 });
 
-export const { logoutCso } = csoAuthSlice.actions;
+
+export const { logoutCso, resetPasswordStatus } = csoAuthSlice.actions;
 
 export default csoAuthSlice.reducer;
+

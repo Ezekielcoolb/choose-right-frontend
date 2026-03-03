@@ -4,14 +4,16 @@ import { TrendingUp, TrendingDown } from "lucide-react";
 import AdminTransactionsPage from "./Transaction";
 import AdminCollectionsPage from "./Collection";
 import AdminRemittancePage from "./Remittance";
+import Maintenance from "../Maintenance";
 
 const TABS = [
   { value: "transactions", label: "Transactions" },
   { value: "collections", label: "Collections" },
   { value: "remittance", label: "Remittance" },
+  { value: "maintenance", label: "Maintenance" },
 ];
 
-export const AllTransactionTable = ({ plans, formatCurrency }) => {
+export const AllTransactionTable = ({ plans, formatCurrency, page = 1, pageSize = plans.length || 1, totalCount = plans.length }) => {
   if (!plans?.length) {
     return (
       <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 px-6 py-16 text-center text-sm text-slate-500">
@@ -19,6 +21,12 @@ export const AllTransactionTable = ({ plans, formatCurrency }) => {
       </div>
     );
   }
+
+  const safePageSize = pageSize || plans.length;
+  const safeTotalCount = Number.isFinite(totalCount) ? totalCount : plans.length;
+  const start = safeTotalCount === 0 ? 0 : (page - 1) * safePageSize + 1;
+  const end = Math.min(safeTotalCount, (page - 1) * safePageSize + plans.length);
+  const label = safeTotalCount === 1 ? "plan" : "plans";
 
   return (
     <div className="overflow-x-auto">
@@ -78,22 +86,34 @@ export const AllTransactionTable = ({ plans, formatCurrency }) => {
                 {formatCurrency(plan.withdrawn)}
               </td>
               <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-emerald-600">
-                {formatCurrency(plan.savingsBalance)}
+                {plan.isLoanPlan ? (
+                  <span className="text-slate-300">—</span>
+                ) : (
+                  formatCurrency(plan.savingsBalance)
+                )}
               </td>
               <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-slate-900">
-                {formatCurrency(plan.loanAmount)}
+                {plan.isLoanPlan ? (
+                  formatCurrency(plan.loanAmount)
+                ) : (
+                  <span className="text-slate-300">—</span>
+                )}
               </td>
               <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-amber-600">
-                {formatCurrency(plan.loanBalance)}
+                {plan.isLoanPlan ? (
+                  formatCurrency(plan.loanBalance)
+                ) : (
+                  <span className="text-slate-300">—</span>
+                )}
               </td>
               <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-slate-900">
-                {formatCurrency(plan.maintenanceFees)}
+                {plan.maintenanceFees > 0 ? formatCurrency(plan.maintenanceFees) : <span className="text-slate-300">—</span>}
               </td>
               <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-slate-900">
-                {formatCurrency(plan.loanFees)}
+                {plan.loanFees > 0 ? formatCurrency(plan.loanFees) : <span className="text-slate-300">—</span>}
               </td>
               <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-slate-900">
-                {formatCurrency(plan.totalFees)}
+                {plan.totalFees > 0 ? formatCurrency(plan.totalFees) : <span className="text-slate-300">—</span>}
               </td>
             </tr>
           ))}
@@ -101,7 +121,9 @@ export const AllTransactionTable = ({ plans, formatCurrency }) => {
         <tfoot className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
           <tr>
             <td colSpan={12} className="px-4 py-3 text-left">
-              Showing {plans.length.toLocaleString()} plan{plans.length === 1 ? "" : "s"}
+              {safeTotalCount === 0
+                ? "No plans to display"
+                : `Showing ${start.toLocaleString()}–${end.toLocaleString()} of ${safeTotalCount.toLocaleString()} ${label}`}
             </td>
           </tr>
         </tfoot>
@@ -119,6 +141,8 @@ export default function AllTransactionsDashboard() {
         return <AdminCollectionsPage />;
       case "remittance":
         return <AdminRemittancePage />;
+      case "maintenance":
+        return <Maintenance />;
       case "transactions":
       default:
         return <AdminTransactionsPage />;

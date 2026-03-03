@@ -22,6 +22,8 @@ import {
   CalendarPlus,
   ArrowRight,
   X,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 
 const defaultCustomerForm = {
@@ -30,6 +32,7 @@ const defaultCustomerForm = {
   phone: "",
   address: "",
   email: "",
+  password: "",
 };
 
 const defaultPlanForm = {
@@ -68,6 +71,7 @@ function Modal({ open, title, onClose, children, widthClass = "max-w-2xl" }) {
 function CustomerForm({ initialValues, onSubmit, submitting }) {
   const [values, setValues] = useState(initialValues);
   const [touched, setTouched] = useState({});
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     setValues(initialValues);
@@ -147,16 +151,48 @@ function CustomerForm({ initialValues, onSubmit, submitting }) {
         </div>
         <div className="space-y-2">
           <label htmlFor="email" className="block text-sm font-medium text-slate-600">
-            Email (optional)
+            Email
           </label>
           <input
             id="email"
             name="email"
+            type="email"
             value={values.email}
             onChange={handleChange}
-            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+            onBlur={handleBlur}
+            required
+             className={`w-full rounded-xl border px-3 py-2 text-sm shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 ${
+              showError("email") ? "border-rose-300" : "border-slate-200"
+            }`}
             placeholder="customer@email.com"
           />
+        </div>
+        <div className="space-y-2">
+          <label htmlFor="password" className="block text-sm font-medium text-slate-600">
+            Password
+          </label>
+          <div className="relative">
+            <input
+              id="password"
+              name="password"
+              type={showPassword ? "text" : "password"}
+              value={values.password}
+              onChange={handleChange}
+              onBlur={handleBlur}
+              required
+              className={`w-full rounded-xl border px-3 py-2 text-sm shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 pr-10 ${
+                showError("password") ? "border-rose-300" : "border-slate-200"
+              }`}
+              placeholder="••••••••"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
+            >
+              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -255,19 +291,19 @@ function PlanForm({ initialValues, onSubmit, submitting }) {
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
-        <div className="space-y-2">
-          <label htmlFor="startDate" className="block text-sm font-medium text-slate-600">
-            Start date
-          </label>
-          <input
-            id="startDate"
-            name="startDate"
-            type="date"
-            value={values.startDate}
-            onChange={handleChange}
-            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-          />
-        </div>
+          <div className="space-y-2">
+            <label htmlFor="startDate" className="block text-sm font-medium text-slate-600">
+              Start date
+            </label>
+            <input
+              id="startDate"
+              name="startDate"
+              type="date"
+              value={values.startDate}
+              readOnly
+              className="w-full rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-sm text-slate-500 shadow-sm focus:outline-none cursor-not-allowed opacity-75"
+            />
+          </div>
         <div className="space-y-2">
           <label htmlFor="description" className="block text-sm font-medium text-slate-600">
             Description
@@ -302,7 +338,7 @@ export default function CustomersPage() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  const { items, status, error, lastActionId, mutationStatus, mutationError } = useSelector((state) => state.customers);
+  const { items, status, error, lastActionId, mutationStatus, mutationError, pagination } = useSelector((state) => state.customers);
   const { plansByCustomer, mutationStatus: savingsMutationStatus, mutationError: savingsMutationError } = useSelector((state) => state.savings);
 
   const [filters, setFilters] = useState({ search: "" });
@@ -312,12 +348,38 @@ export default function CustomersPage() {
   const [planFormValues, setPlanFormValues] = useState(defaultPlanForm);
   const [planCustomerId, setPlanCustomerId] = useState(null);
   const [handledActionId, setHandledActionId] = useState(null);
+  const [page, setPage] = useState(1);
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const pageSize = 16;
 
   useEffect(() => {
-    if (status === "idle") {
-      dispatch(fetchCustomers());
+    const handler = setTimeout(() => {
+      setDebouncedSearch(filters.search.trim());
+    }, 400);
+
+    return () => clearTimeout(handler);
+  }, [filters.search]);
+
+  useEffect(() => {
+    const params = { page, limit: pageSize };
+    if (debouncedSearch) {
+      params.search = debouncedSearch;
     }
-  }, [status, dispatch]);
+    dispatch(fetchCustomers(params));
+  }, [dispatch, page, debouncedSearch]);
+
+  useEffect(() => {
+    if (!pagination) {
+      return;
+    }
+
+    const totalPagesFromServer = Math.max(pagination.pages || 1, 1);
+    const requestedPage = Math.max(pagination.page || 1, 1);
+    const normalizedPage = Math.min(requestedPage, totalPagesFromServer);
+    if (normalizedPage !== page) {
+      setPage(normalizedPage);
+    }
+  }, [pagination, page]);
 
   useEffect(() => {
     if (lastActionId && lastActionId !== handledActionId) {
@@ -334,13 +396,15 @@ export default function CustomersPage() {
     dispatch(clearSavingsState());
   }, [dispatch]);
 
-  const filteredCustomers = useMemo(() => {
-    if (!filters.search.trim()) {
-      return items;
-    }
-    const term = filters.search.trim().toLowerCase();
-    return items.filter((customer) => `${customer.firstName} ${customer.lastName} ${customer.phone}`.toLowerCase().includes(term));
-  }, [filters.search, items]);
+  const customers = items || [];
+  const totalCustomers = pagination?.total ?? customers.length;
+  const currentPage = pagination?.page ?? page;
+  const totalPages = pagination?.pages ?? Math.max(1, Math.ceil(totalCustomers / pageSize));
+  const pageLimit = pagination?.limit ?? pageSize;
+  const startIndex = totalCustomers ? Math.min((currentPage - 1) * pageLimit + 1, totalCustomers) : 0;
+  const endIndex = totalCustomers
+    ? Math.min((currentPage - 1) * pageLimit + customers.length, totalCustomers)
+    : 0;
 
   const openCustomerModal = () => {
     setCustomerFormValues(defaultCustomerForm);
@@ -362,7 +426,17 @@ export default function CustomersPage() {
   };
 
   const handleCreateCustomer = (values) => {
-    dispatch(createCustomer(values));
+    dispatch(createCustomer(values))
+      .unwrap()
+      .then(() => {
+        setPage(1);
+        const params = { page: 1, limit: pageLimit };
+        if (debouncedSearch) {
+          params.search = debouncedSearch;
+        }
+        dispatch(fetchCustomers(params));
+      })
+      .catch(() => {});
   };
 
   const handleCreatePlan = (values) => {
@@ -375,7 +449,10 @@ export default function CustomersPage() {
         setPlanFormValues(defaultPlanForm);
         setPlanCustomerId(null);
         dispatch(fetchSavingsPlans({ customerId: planCustomerId }));
-        const params = filters.search ? { search: filters.search } : undefined;
+        const params = { page: currentPage, limit: pageLimit };
+        if (debouncedSearch) {
+          params.search = debouncedSearch;
+        }
         dispatch(fetchCustomers(params));
       })
       .catch((err) => {
@@ -410,7 +487,13 @@ export default function CustomersPage() {
             </button>
             <button
               type="button"
-              onClick={() => dispatch(fetchCustomers())}
+              onClick={() => {
+                const params = { page: currentPage, limit: pageLimit };
+                if (debouncedSearch) {
+                  params.search = debouncedSearch;
+                }
+                dispatch(fetchCustomers(params));
+              }}
               className="inline-flex items-center gap-2 rounded-2xl border border-white/40 px-4 py-2 text-sm font-semibold text-white/90 hover:border-white hover:text-white"
             >
               Refresh list
@@ -426,7 +509,10 @@ export default function CustomersPage() {
             <input
               type="search"
               value={filters.search}
-              onChange={(event) => setFilters((prev) => ({ ...prev, search: event.target.value }))}
+              onChange={(event) => {
+                setPage(1);
+                setFilters((prev) => ({ ...prev, search: event.target.value }));
+              }}
               placeholder="Search by name or phone"
               className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-10 pr-3 text-sm text-slate-700 placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
             />
@@ -442,7 +528,7 @@ export default function CustomersPage() {
             <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">
               {error}
             </div>
-          ) : !filteredCustomers.length ? (
+          ) : !customers.length ? (
             <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50/60 px-6 py-12 text-center">
               <h3 className="text-lg font-semibold text-slate-900">No customers yet</h3>
               <p className="mt-2 text-sm text-slate-500">
@@ -458,7 +544,7 @@ export default function CustomersPage() {
             </div>
           ) : (
             <div className="grid gap-5 lg:grid-cols-2">
-              {filteredCustomers.map((customer) => {
+              {customers.map((customer) => {
                 const summary = customer.savingsSummary || {};
                 return (
                   <article
@@ -523,6 +609,31 @@ export default function CustomersPage() {
                   </article>
                 );
               })}
+              <div className="lg:col-span-2 flex flex-col items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-slate-50/60 px-4 py-3 text-xs text-slate-500 sm:flex-row">
+                <p className="text-center sm:text-left">
+                  Showing {startIndex || 0}–{endIndex || 0} of {totalCustomers.toLocaleString()} customers
+                  {debouncedSearch ? ` matching “${debouncedSearch}”` : ""}
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                    disabled={currentPage <= 1}
+                    className="inline-flex items-center rounded-full border border-slate-200 px-3 py-1 font-medium text-slate-600 transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Previous
+                  </button>
+                  <span className="font-medium text-slate-600">Page {currentPage} of {totalPages}</span>
+                  <button
+                    type="button"
+                    onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage >= totalPages}
+                    className="inline-flex items-center rounded-full border border-slate-200 px-3 py-1 font-medium text-slate-600 transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </div>

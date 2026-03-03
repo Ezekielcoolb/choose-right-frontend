@@ -12,7 +12,7 @@ import {
 
 import {
   fetchAdminSavingsPlans,
-  fetchSavingsEntries,
+  fetchAdminPlanEntries,
 } from "../../../redux/slices/savingsSlice";
 import { fetchCustomers } from "../../../redux/slices/customersSlice";
 import { fetchCsos } from "../../../redux/slices/csoSlice";
@@ -24,6 +24,31 @@ const PAYMENT_TYPES = new Set([
   "loan-payment",
   "repayment",
 ]);
+
+const isLoan = (plan) => {
+  if (!plan) return false;
+  const status = (plan.loanStatus || plan.status || "").toLowerCase();
+  const type = (plan.planType || "").toLowerCase();
+  // Only classify as Loan if it's explicitly approved, active, or in a terminal "paid" state.
+  // Pending and Rejected requests should stay as Savings.
+  return (
+    ["approved", "active", "completed", "disbursed", "repaid"].includes(status) ||
+    plan.isLoan === true ||
+    type === "loan"
+  );
+};
+
+const deriveLoanMetrics = (plan) => {
+  const loanDetails = plan?.loanDetails || {};
+  const loanFees = Number(
+    loanDetails.maintenanceFee ??
+      loanDetails.processingFee ??
+      loanDetails.serviceCharge ??
+      plan?.loanFees ??
+      0,
+  );
+  return { loanFees: Number.isFinite(loanFees) && loanFees > 0 ? loanFees : 0 };
+};
 
 const formatCurrency = (amount) => `₦${Number(amount || 0).toLocaleString()}`;
 
@@ -132,6 +157,8 @@ const deriveCsoMeta = (plan, csosById) => {
   return { id: planCsoId || null, name: "—", phone: "—" };
 };
 
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
+
 export default function AdminCollectionsPage() {
   const dispatch = useDispatch();
 
@@ -150,6 +177,8 @@ export default function AdminCollectionsPage() {
   const [customEnd, setCustomEnd] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [csoFilter, setCsoFilter] = useState("all");
+  const [pageSize, setPageSize] = useState(PAGE_SIZE_OPTIONS[1]);
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     if (adminPlansStatus === "idle") {
@@ -184,7 +213,14 @@ export default function AdminCollectionsPage() {
       }
 
       fetchedPlans.current.add(plan._id);
-      dispatch(fetchSavingsEntries({ planId: plan._id, page: 1, limit: 500 }));
+      dispatch(
+        fetchAdminPlanEntries({
+          customerId: plan.customerId?._id || plan.customerId,
+          planId: plan._id,
+          page: 1,
+          limit: 500,
+        }),
+      );
     });
   }, [adminPlans, entriesByPlan, dispatch]);
 
@@ -242,6 +278,10 @@ export default function AdminCollectionsPage() {
         const dateKey = getDateKey(recordedAt);
         const monthKey = getMonthKey(recordedAt);
 
+        const isLoanPlan = isLoan(plan);
+        const maintenanceFees = Number(plan.totalFees || plan.maintenanceFee || 0);
+        const loanFees = isLoanPlan ? deriveLoanMetrics(plan).loanFees : 0;
+
         entries.push({
           id: `${plan._id}-${entry._id || entry.id || recordedAt}`,
           planId: plan._id,
@@ -258,6 +298,9 @@ export default function AdminCollectionsPage() {
           recordedAt: localDate,
           dateKey,
           monthKey,
+          maintenanceFees,
+          loanFees,
+          isLoanPlan,
         });
       });
     });
@@ -320,6 +363,48 @@ export default function AdminCollectionsPage() {
       return true;
     });
   }, [allEntries, matchesQuickRange, selectedMonth, csoFilter, searchTerm]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [quickRange, selectedMonth, customStart, customEnd, csoFilter, searchTerm]);
+
+  const totalRecords = filteredEntries.length;
+  const totalPages = Math.max(1, Math.ceil(totalRecords / (pageSize || 1)));
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  const paginatedEntries = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    return filteredEntries.slice(startIndex, startIndex + pageSize);
+  }, [filteredEntries, currentPage, pageSize]);
+
+  const canGoPrev = currentPage > 1;
+  const canGoNext = currentPage < totalPages;
+
+  const handlePageSizeChange = (event) => {
+    const nextSize = Number(event.target.value) || PAGE_SIZE_OPTIONS[0];
+    setPageSize(nextSize);
+    setCurrentPage(1);
+  };
+
+  const handlePrevPage = () => {
+    if (canGoPrev) {
+      setCurrentPage((prev) => Math.max(1, prev - 1));
+    }
+  };
+
+  const handleNextPage = () => {
+    if (canGoNext) {
+      setCurrentPage((prev) => Math.min(totalPages, prev + 1));
+    }
+  };
+
+  const startIndex = totalRecords === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const endIndex = Math.min(totalRecords, (currentPage - 1) * pageSize + paginatedEntries.length);
 
   const totals = useMemo(
     () =>
@@ -503,50 +588,101 @@ export default function AdminCollectionsPage() {
               No payments match your filters.
             </div>
           ) : (
-            <table className="min-w-full divide-y divide-slate-200 text-sm text-slate-600">
-              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                <tr>
-                  <th className="px-4 py-3 text-left font-semibold">Date</th>
-                  <th className="px-4 py-3 text-left font-semibold">Plan</th>
-                  <th className="px-4 py-3 text-left font-semibold">Customer</th>
-                  <th className="px-4 py-3 text-left font-semibold">CSO</th>
-                  <th className="px-4 py-3 text-left font-semibold">Type</th>
-                  <th className="px-4 py-3 text-left font-semibold">Narration</th>
-                  <th className="px-4 py-3 text-right font-semibold">Amount</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredEntries.map((entry) => (
-                  <tr key={entry.id} className="transition hover:bg-slate-50/70">
-                    <td className="whitespace-nowrap px-4 py-3 text-slate-600">
-                      {entry.recordedAt
-                        ? `${entry.recordedAt.toLocaleDateString()} • ${entry.recordedAt.toLocaleTimeString([], {
-                            hour: "numeric",
-                            minute: "2-digit",
-                          })}`
-                        : "—"}
-                    </td>
-                    <td className="px-4 py-3">
-                      <p className="font-medium text-slate-900">{entry.planName}</p>
-                      <p className="text-xs text-slate-400">{entry.planCode}</p>
-                    </td>
-                    <td className="px-4 py-3">
-                      <p className="font-medium text-slate-900">{entry.customerName}</p>
-                      <p className="text-xs text-slate-400">{entry.customerPhone || "—"}</p>
-                    </td>
-                    <td className="px-4 py-3">
-                      <p className="font-medium text-slate-900">{entry.csoName || "—"}</p>
-                      <p className="text-xs text-slate-400">{entry.csoPhone || "—"}</p>
-                    </td>
-                    <td className="px-4 py-3 text-slate-600">{entry.type}</td>
-                    <td className="px-4 py-3 text-slate-500">{entry.narration || "—"}</td>
-                    <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-slate-900">
-                      {formatCurrency(entry.amount)}
-                    </td>
+            <>
+              <table className="min-w-full divide-y divide-slate-200 text-sm text-slate-600">
+                <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-semibold">Date</th>
+                    <th className="px-4 py-3 text-left font-semibold">Plan</th>
+                    <th className="px-4 py-3 text-left font-semibold">Customer</th>
+                    <th className="px-4 py-3 text-left font-semibold">CSO</th>
+                    <th className="px-4 py-3 text-left font-semibold">Type</th>
+                    <th className="px-4 py-3 text-left font-semibold">Narration</th>
+                    <th className="px-4 py-3 text-right font-semibold">M. Fee</th>
+                    <th className="px-4 py-3 text-right font-semibold">Loan Fee</th>
+                    <th className="px-4 py-3 text-right font-semibold">Amount</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {paginatedEntries.map((entry) => (
+                    <tr key={entry.id} className="transition hover:bg-slate-50/70">
+                      <td className="whitespace-nowrap px-4 py-3 text-slate-600">
+                        {entry.recordedAt
+                          ? `${entry.recordedAt.toLocaleDateString()} • ${entry.recordedAt.toLocaleTimeString([], {
+                              hour: "numeric",
+                              minute: "2-digit",
+                            })}`
+                          : "—"}
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="font-medium text-slate-900">{entry.planName}</p>
+                        <p className="text-xs text-slate-400">{entry.planCode}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="font-medium text-slate-900">{entry.customerName}</p>
+                        <p className="text-xs text-slate-400">{entry.customerPhone || "—"}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="font-medium text-slate-900">{entry.csoName || "—"}</p>
+                        <p className="text-xs text-slate-400">{entry.csoPhone || "—"}</p>
+                      </td>
+                      <td className="px-4 py-3 text-slate-600 capitalize">{entry.type}</td>
+                      <td className="px-4 py-3 text-slate-500">{entry.narration || "—"}</td>
+                      <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-slate-400">
+                        {entry.maintenanceFees > 0 ? formatCurrency(entry.maintenanceFees) : "—"}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-slate-400">
+                        {entry.loanFees > 0 ? formatCurrency(entry.loanFees) : "—"}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-slate-900">
+                        {formatCurrency(entry.amount)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <label className="flex items-center gap-2 text-sm text-slate-600">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Rows per page</span>
+                  <select
+                    value={pageSize}
+                    onChange={handlePageSizeChange}
+                    className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  >
+                    {PAGE_SIZE_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-4">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    {totalRecords === 0
+                      ? "No records to display"
+                      : `Showing ${startIndex.toLocaleString()}–${endIndex.toLocaleString()} of ${totalRecords.toLocaleString()} record${totalRecords === 1 ? "" : "s"}`}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handlePrevPage}
+                      disabled={!canGoPrev}
+                      className="rounded-full border border-slate-200 px-4 py-1.5 text-sm font-semibold text-slate-600 transition hover:border-primary/40 hover:text-primary disabled:cursor-not-allowed disabled:border-slate-100 disabled:text-slate-300"
+                    >
+                      Previous
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleNextPage}
+                      disabled={!canGoNext}
+                      className="rounded-full border border-slate-200 px-4 py-1.5 text-sm font-semibold text-slate-600 transition hover:border-primary/40 hover:text-primary disabled:cursor-not-allowed disabled:border-slate-100 disabled:text-slate-300"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </>
           )}
         </div>
       </section>

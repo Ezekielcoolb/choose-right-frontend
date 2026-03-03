@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { Loader2, CalendarDays, RefreshCw, Banknote, X } from "lucide-react";
+import { Loader2, CalendarDays, RefreshCw, Banknote, X, Search } from "lucide-react";
 import {
   fetchSavingsPlans,
   fetchSavingsEntries,
@@ -11,6 +11,8 @@ import {
   setRemittanceDeadlineAlert,
 } from "../../redux/slices/csoSlice";
 import { fetchCsoProfile } from "../../redux/slices/csoAuthSlice";
+
+const PAGE_SIZE = 10;
 
 const PAYMENT_TYPES = new Set([
   "deposit",
@@ -128,6 +130,8 @@ export default function CsoCollectionPage() {
   const [remittanceError, setRemittanceError] = useState("");
   const [countdownMs, setCountdownMs] = useState(getMillisUntilNextMidnight);
   const [remittanceRecordedFlag, setRemittanceRecordedFlag] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
 
   const todayKey = getTodayKey();
   const isViewingToday = selectedDate === todayKey;
@@ -251,11 +255,58 @@ export default function CsoCollectionPage() {
     [payments],
   );
 
+  const filteredPayments = useMemo(() => {
+    if (!searchTerm.trim()) return payments;
+    const lookup = searchTerm.toLowerCase();
+    return payments.filter((payment) => {
+      return [
+        payment.customerName,
+        payment.planName,
+        payment.type,
+        payment.narration,
+      ]
+        .filter(Boolean)
+        .some((value) => value.toString().toLowerCase().includes(lookup));
+    });
+  }, [payments, searchTerm]);
+
+  const paginatedPayments = useMemo(() => {
+    const total = filteredPayments.length;
+    const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    const page = Math.min(currentPage, totalPages);
+    const start = (page - 1) * PAGE_SIZE;
+    return {
+      total,
+      totalPages,
+      page,
+      items: filteredPayments.slice(start, start + PAGE_SIZE),
+    };
+  }, [filteredPayments, currentPage]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
+
   const uniqueCustomersCount = useMemo(() => {
     const set = new Set();
     payments.forEach((payment) => {
       if (payment.customerName) {
         set.add(payment.customerName);
+      }
+    });
+    return set.size;
+  }, [payments]);
+
+  const uniquePlansCount = useMemo(() => {
+    const set = new Set();
+    payments.forEach((payment) => {
+      // Assuming planName is unique enough or we can use ID if we had it.
+      // Let's use ID if possible. Checking payment object structure.
+      // In rows.push, ID is `${plan._id}-${entry._id ...}`.
+      // Let's extract planId or add it to the payment object.
+      // Re-examining rows.push logic.
+      if (payment.planName) {
+        set.add(payment.planName);
       }
     });
     return set.size;
@@ -454,6 +505,26 @@ export default function CsoCollectionPage() {
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Customers</p>
             <p className="mt-2 text-2xl font-semibold text-slate-900">{uniqueCustomersCount}</p>
           </div>
+          <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Plans</p>
+            <p className="mt-2 text-2xl font-semibold text-slate-900">{uniquePlansCount}</p>
+          </div>
+        </div>
+
+        <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Collections table
+          </div>
+          <div className="relative w-full sm:max-w-xs">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Search by customer, plan, type or narration"
+              className="w-full rounded-full border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-700 shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+            />
+          </div>
         </div>
 
         <div className="mt-6 overflow-x-auto rounded-2xl border border-slate-100 sm:overflow-hidden">
@@ -464,6 +535,10 @@ export default function CsoCollectionPage() {
           ) : payments.length === 0 ? (
             <div className="px-6 py-12 text-center text-sm text-slate-500">
               No payments recorded for this date.
+            </div>
+          ) : filteredPayments.length === 0 ? (
+            <div className="px-6 py-12 text-center text-sm text-slate-500">
+              No payments match your search.
             </div>
           ) : (
             <table className="w-full min-w-[720px] table-auto">
@@ -478,7 +553,7 @@ export default function CsoCollectionPage() {
                 </tr>
               </thead>
               <tbody className="text-sm text-slate-600">
-                {payments.map((payment) => (
+                {paginatedPayments.items.map((payment) => (
                   <tr key={payment.id} className="border-b border-slate-100 hover:bg-slate-50">
                     <td className="px-4 py-3 font-medium text-slate-900">{formatTime(payment.time)}</td>
                     <td className="px-4 py-3">{payment.customerName}</td>
@@ -494,6 +569,37 @@ export default function CsoCollectionPage() {
             </table>
           )}
         </div>
+
+        {filteredPayments.length > 0 ? (
+          <div className="flex flex-col items-center gap-3 border-t border-slate-100 bg-slate-50 px-4 py-3 text-xs font-semibold text-slate-600 sm:flex-row sm:justify-between sm:text-sm">
+            <span>
+              Showing {(paginatedPayments.page - 1) * PAGE_SIZE + 1}–
+              {Math.min(paginatedPayments.page * PAGE_SIZE, paginatedPayments.total)} of {paginatedPayments.total} payments
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                disabled={paginatedPayments.page === 1}
+                className="rounded-full border border-slate-200 px-3 py-1 transition enabled:hover:border-primary/40 enabled:hover:text-primary disabled:opacity-40"
+              >
+                Previous
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setCurrentPage((page) =>
+                    Math.min(paginatedPayments.totalPages, page + 1),
+                  )
+                }
+                disabled={paginatedPayments.page === paginatedPayments.totalPages}
+                className="rounded-full border border-slate-200 px-3 py-1 transition enabled:hover:border-primary/40 enabled:hover:text-primary disabled:opacity-40"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        ) : null}
       </section>
 
       {isRemittanceModalOpen ? (

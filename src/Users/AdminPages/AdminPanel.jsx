@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { Loader2, Plus, Search, ShieldAlert, ShieldCheck } from "lucide-react";
-
 import {
   createAdminMember,
   fetchAdminMembers,
   toggleSuspendAdminMember,
+  deleteAdminMember,
 } from "../../redux/slices/adminPanelSlice.jsx";
 import { fetchBranches } from "../../redux/slices/branchSlice.jsx";
+import { Loader2, Plus, Search, ShieldAlert, ShieldCheck, Trash2 } from "lucide-react";
+
 
 const DEFAULT_ROLE = "Manager";
 
@@ -132,6 +133,12 @@ export default function AdminPanelPage() {
     dispatch(toggleSuspendAdminMember({ id: member._id, isSuspended: !member.isSuspended }));
   };
 
+  const handleDeleteMember = (memberId) => {
+    const confirmed = window.confirm("Are you sure you want to delete this admin member? This action cannot be undone.");
+    if (!confirmed) return;
+    dispatch(deleteAdminMember(memberId));
+  };
+
   const handleOpenDetail = (member) => {
     setSelectedMemberId(member._id);
     setIsDetailModalOpen(true);
@@ -140,7 +147,11 @@ export default function AdminPanelPage() {
   const handleCloseDetail = () => {
     setSelectedMemberId(null);
     setIsDetailModalOpen(false);
+    if (mutationStatus === "succeeded") {
+      dispatch(fetchAdminMembers()); // Refresh list after potential state changes if needed, though slice handles it
+    }
   };
+
 
   return (
     <div className="space-y-8 p-6">
@@ -257,11 +268,20 @@ export default function AdminPanelPage() {
                               : "border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100"
                           } ${isMutating ? "opacity-60" : ""}`}
                         >
-                          {isMutating ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                           {member.isSuspended ? "Reinstate" : "Suspend"}
                         </button>
+                        {/* <button
+                          type="button"
+                          disabled={isMutating}
+                          onClick={() => handleDeleteMember(member._id)}
+                          className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-600 transition hover:bg-rose-100 disabled:opacity-60"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          Delete
+                        </button> */}
                       </div>
                     </td>
+
                   </tr>
                 ))}
               </tbody>
@@ -302,8 +322,21 @@ export default function AdminPanelPage() {
               {isMutating ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               {selectedMember.isSuspended ? "Reinstate member" : "Suspend member"}
             </button>
+            <button
+              type="button"
+              disabled={isMutating}
+              onClick={() => {
+                handleDeleteMember(selectedMember._id);
+                handleCloseDetail();
+              }}
+              className="mt-2 inline-flex items-center justify-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-600 transition hover:bg-rose-100 disabled:opacity-60"
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete member
+            </button>
           </div>
         </Modal>
+
       ) : null}
 
       {isFormModalOpen ? (
