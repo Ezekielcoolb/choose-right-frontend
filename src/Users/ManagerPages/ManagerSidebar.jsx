@@ -9,6 +9,7 @@ import {
   PiggyBank,
   CreditCard,
   MenuSquare,
+  Wallet,
   ChevronDown,
   ChevronRight,
 } from "lucide-react";
@@ -23,6 +24,7 @@ const primaryNav = [
 
 const transactionNav = [
   { label: "Transactions", to: "/manager/transactions", icon: ArrowLeftRight },
+  { label: "Withdrawals", to: "/manager/withdrawals", icon: Wallet },
 ];
 
 const secondaryNav = [

@@ -3,13 +3,11 @@ import { useDispatch, useSelector } from "react-redux";
 import {
   Activity,
   ArrowRight,
-  Banknote,
   Building2,
   Loader2,
   PieChart,
   PiggyBank,
   Sparkles,
-  Target,
   Users,
 } from "lucide-react";
 import {
@@ -320,26 +318,15 @@ export default function ManagerDashboard() {
               <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 font-semibold">
                 <Activity className="h-4 w-4 text-emerald-300" /> {monthlyTrend.length} month trendline
               </div>
-              <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 font-semibold">
-                <Target className="h-4 w-4 text-sky-300" /> {formatCurrency(totalSavingsBalance)} liquidity
-              </div>
             </div>
           </div>
           <div className="rounded-3xl bg-white/10 p-6 text-sm backdrop-blur">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-200">Today&apos;s focus</p>
             <div className="mt-4 space-y-3">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-slate-200">Net inflow YTD</span>
-                <span className="font-semibold text-white">{formatCurrency(totalDeposited - totalSavingsWithdrawn)}</span>
-              </div>
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-slate-200">Loan portfolio</span>
-                <span className="font-semibold text-white">{formatCurrency(totalLoanOutstanding)}</span>
-              </div>
-              <div className="flex items-center justify-between gap-3">
+              {/* <div className="flex items-center justify-between gap-3">
                 <span className="text-slate-200">Collections captured</span>
                 <span className="font-semibold text-emerald-200">{formatCurrency(totalDeposited + totalLoanCollected)}</span>
-              </div>
+              </div> */}
             </div>
             <button
               type="button"
@@ -361,114 +348,9 @@ export default function ManagerDashboard() {
         </div>
       ) : (
         <>
-          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Total deposits</p>
-                  <p className="mt-2 text-2xl font-semibold text-slate-900">{formatCurrency(totalDeposited + totalLoanCollected)}</p>
-                </div>
-                <PiggyBank className="h-8 w-8 text-primary" />
-              </div>
-              <p className="mt-3 text-xs text-slate-500">Net cumulative savings & repayments</p>
-              <ProgressMeter label="Available liquidity" total={(totalDeposited + totalLoanCollected) || 1} value={totals.availableBalance} tone="bg-emerald-500" />
-            </article>
 
-            <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Loan exposure</p>
-                  <p className="mt-2 text-2xl font-semibold text-slate-900">{formatCurrency(totalLoanOutstanding)}</p>
-                </div>
-                <Banknote className="h-8 w-8 text-amber-500" />
-              </div>
-              <p className="mt-3 text-xs text-slate-500">{activeLoanCount.toLocaleString()} active loans</p>
-              <ProgressMeter label="Repaid" total={totalLoanDisbursed || (totalLoanOutstanding + totalLoanRepaid) || 1} value={totalLoanRepaid} tone="bg-amber-500" />
-            </article>
 
-            <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Customer network</p>
-                  <p className="mt-2 text-2xl font-semibold text-slate-900">{customerCount.toLocaleString()}</p>
-                </div>
-                <Users className="h-8 w-8 text-sky-500" />
-              </div>
-              <p className="mt-3 text-xs text-slate-500">{csoCount.toLocaleString()} CSOs managed</p>
-              <ProgressMeter label="Active CSOs" total={csoCount || 1} value={csoCount} tone="bg-sky-500" />
-            </article>
 
-            <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Fee portfolio</p>
-                  <p className="mt-2 text-2xl font-semibold text-slate-900">{formatCurrency(totalSavingsMaintenance + totalLoanFees)}</p>
-                </div>
-                <PieChart className="h-8 w-8 text-rose-500" />
-              </div>
-              <p className="mt-3 text-xs text-slate-500">Combined maintenance revenue</p>
-              <ProgressMeter label="Loan fee share" total={(totalSavingsMaintenance + totalLoanFees) || 1} value={totalLoanFees} tone="bg-rose-500" />
-            </article>
-          </section>
-
-          <section className="grid gap-6 lg:grid-cols-2">
-            <article className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-xl font-semibold text-slate-900">Savings Section</h2>
-                  <p className="text-sm text-slate-500">Core metrics for customer savings.</p>
-                </div>
-                <PiggyBank className="h-7 w-7 text-primary" />
-              </div>
-              <dl className="mt-6 grid gap-4 sm:grid-cols-2">
-                <div className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
-                  <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Total Amount Saved</dt>
-                  <dd className="mt-2 text-lg font-semibold text-slate-900">{formatCurrency(totalDeposited)}</dd>
-                </div>
-                <div className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
-                  <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Total Maintenance on Saving</dt>
-                  <dd className="mt-2 text-lg font-semibold text-slate-900">{formatCurrency(totalSavingsMaintenance)}</dd>
-                </div>
-                <div className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
-                  <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Total Withdrawal</dt>
-                  <dd className="mt-2 text-lg font-semibold text-slate-900">{formatCurrency(totalSavingsWithdrawn)}</dd>
-                </div>
-                <div className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
-                  <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Available Balance</dt>
-                  <dd className="mt-2 text-lg font-semibold text-emerald-700">{formatCurrency(totalSavingsBalance)}</dd>
-                </div>
-              </dl>
-            </article>
-
-            <article className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-xl font-semibold text-slate-900">Loan Section</h2>
-                  <p className="text-sm text-slate-500">Performance tracking for the loan portfolio.</p>
-                </div>
-                <Banknote className="h-7 w-7 text-amber-500" />
-              </div>
-              <dl className="mt-6 grid gap-4 sm:grid-cols-2">
-                <div className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
-                  <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Total Loan</dt>
-                  <dd className="mt-2 text-lg font-semibold text-slate-900">{formatCurrency(totalLoanDisbursed)}</dd>
-                </div>
-                <div className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
-                  <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Total Paid Back</dt>
-                  <dd className="mt-2 text-lg font-semibold text-slate-900">{formatCurrency(totalLoanRepaid)}</dd>
-                </div>
-                <div className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
-                  <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Loan Maintenance Fee</dt>
-                  <dd className="mt-2 text-lg font-semibold text-slate-900">{formatCurrency(totalLoanFees)}</dd>
-                </div>
-
-                <div className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
-                  <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Loan Balance</dt>
-                  <dd className="mt-2 text-lg font-semibold text-amber-700">{formatCurrency(totalLoanOutstanding)}</dd>
-                </div>
-              </dl>
-            </article>
-          </section>
 
           <section className="grid gap-6 lg:grid-cols-3">
             <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:col-span-2">
@@ -490,43 +372,30 @@ export default function ManagerDashboard() {
               </div>
             </div>
 
-            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-xl font-semibold text-slate-900">Cash flow composition</h2>
-                  <p className="text-sm text-slate-500">Inflow vs withdrawals vs fees.</p>
+            <div className="grid gap-6 lg:grid-cols-1">
+              <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Customer network</p>
+                    <p className="mt-2 text-2xl font-semibold text-slate-900">{customerCount.toLocaleString()}</p>
+                  </div>
+                  <Users className="h-8 w-8 text-sky-500" />
                 </div>
-                <Activity className="h-6 w-6 text-emerald-500" />
-              </div>
-              <div className="mt-6 space-y-5">
-                <div className="rounded-2xl bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent p-4">
-                  <div className="flex items-center justify-between text-sm font-semibold text-slate-900">
-                    <span>Inflow captured</span>
-                    <span>{formatCurrency(flowTotals.inflow)}</span>
+                <p className="mt-3 text-xs text-slate-500">{csoCount.toLocaleString()} CSOs managed</p>
+                <ProgressMeter label="Active CSOs" total={csoCount || 1} value={csoCount} tone="bg-sky-500" />
+              </article>
+{/* 
+              <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Fee portfolio</p>
+                    <p className="mt-2 text-2xl font-semibold text-slate-900">{formatCurrency(totalSavingsMaintenance + totalLoanFees)}</p>
                   </div>
-                  <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-emerald-100">
-                    <div className="h-full rounded-full bg-emerald-500" style={{ width: `${flowTotals.ratioInflow}%` }} />
-                  </div>
+                  <PieChart className="h-8 w-8 text-rose-500" />
                 </div>
-                <div className="rounded-2xl bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent p-4">
-                  <div className="flex items-center justify-between text-sm font-semibold text-slate-900">
-                    <span>Payout obligations</span>
-                    <span>{formatCurrency(flowTotals.outflow)}</span>
-                  </div>
-                  <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-amber-100">
-                    <div className="h-full rounded-full bg-amber-500" style={{ width: `${flowTotals.ratioOutflow}%` }} />
-                  </div>
-                </div>
-                <div className="rounded-2xl bg-gradient-to-r from-rose-500/10 via-rose-500/5 to-transparent p-4">
-                  <div className="flex items-center justify-between text-sm font-semibold text-slate-900">
-                    <span>Fees retained</span>
-                    <span>{formatCurrency(flowTotals.fees)}</span>
-                  </div>
-                  <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-rose-100">
-                    <div className="h-full rounded-full bg-rose-500" style={{ width: `${flowTotals.ratioFees}%` }} />
-                  </div>
-                </div>
-              </div>
+                <p className="mt-3 text-xs text-slate-500">Combined maintenance revenue</p>
+                <ProgressMeter label="Loan fee share" total={(totalSavingsMaintenance + totalLoanFees) || 1} value={totalLoanFees} tone="bg-rose-500" />
+              </article> */}
             </div>
           </section>
 

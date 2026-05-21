@@ -391,7 +391,7 @@ export default function ProductPage() {
             </>
           ) : (
             <>
-              <div className="rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4">
+              {/* <div className="rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600">Total disbursed</p>
                 <p className="mt-2 text-xl font-bold text-indigo-700">{formatCurrency(loanSummary.totalDisbursed)}</p>
               </div>
@@ -402,7 +402,7 @@ export default function ProductPage() {
               <div className="rounded-2xl border border-rose-100 bg-rose-50/60 p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-rose-600">Outstanding balance</p>
                 <p className="mt-2 text-xl font-bold text-rose-700">{formatCurrency(loanSummary.totalOutstanding)}</p>
-              </div>
+              </div> */}
             </>
           )}
         </div>

@@ -21,6 +21,11 @@ import {
   updateSavingsDailyContribution,
 } from "../../../redux/slices/savingsSlice";
 import { fetchCsoProfile } from "../../../redux/slices/csoAuthSlice";
+import { 
+  createBackdateRequest, 
+  fetchCsoBackdateRequests,
+  clearBackdateState 
+} from "../../../redux/slices/backdateSlice";
 import LoanRequestModal from "./LoanRequestModal";
 import {
   ArrowLeft,
@@ -43,6 +48,9 @@ import {
   CreditCard,
   Target,
   MoreVertical,
+  AlertCircle,
+  CalendarClock,
+  Send,
 } from "lucide-react";
 
 const defaultEditForm = {
@@ -122,6 +130,7 @@ const LOAN_PAYMENT_TYPES = new Set([
   "loanrepayment",
   "loan-payment",
   "repayment",
+  "fee",
 ]);
 
 const LOAN_DISBURSEMENT_TYPES = new Set([
@@ -550,7 +559,7 @@ function EditCustomerForm({ initialValues, onSubmit, submitting }) {
   );
 }
 
-function ContributionForm({ initialValues, onSubmit, submitting, actionLabel, icon: Icon, minDate, maxDate }) {
+function ContributionForm({ initialValues, onSubmit, submitting, actionLabel, icon: Icon, minDate, maxDate, readOnlyDate }) {
   const [values, setValues] = useState(initialValues);
 
   useEffect(() => {
@@ -638,9 +647,10 @@ function ContributionForm({ initialValues, onSubmit, submitting, actionLabel, ic
             type="date"
             value={values.recordedAt ? values.recordedAt.slice(0, 10) : ""}
             onChange={handleChange}
+            readOnly={readOnlyDate}
             min={minDate ? new Date(minDate).toISOString().slice(0, 10) : undefined}
             max={maxDate ? new Date(maxDate).toISOString().slice(0, 10) : undefined}
-            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+            className={`w-full rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 ${readOnlyDate ? "bg-slate-50 cursor-not-allowed" : ""}`}
           />
         </div>
       </div>
@@ -802,6 +812,90 @@ function PlanForm({ initialValues, onSubmit, submitting }) {
   );
 }
 
+function BackdateRequestModal({ isOpen, onClose, onSubmit, submitting, plan }) {
+  const [proposedDate, setProposedDate] = useState("");
+  const [reason, setReason] = useState("");
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!proposedDate || !reason) return;
+    
+    onSubmit({
+      planId: plan._id,
+      proposedDate,
+      reason
+    });
+  };
+
+  return (
+    <Modal
+      open={isOpen}
+      onClose={onClose}
+      title="Request Backdate Deposit"
+    >
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 flex items-start gap-3">
+          <AlertCircle className="h-5 w-5 shrink-0 text-amber-600 mt-0.5" />
+          <p className="leading-relaxed">
+            Recording a deposit for a past date requires Administrator approval. 
+            Please provide the proposed date and a reason for the backdate request.
+          </p>
+        </div>
+
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <label htmlFor="proposedDate" className="block text-sm font-medium text-slate-700">
+              Proposed Date
+            </label>
+            <input
+              id="proposedDate"
+              type="date"
+              required
+              max={new Date().toISOString().split('T')[0]}
+              value={proposedDate}
+              onChange={(e) => setProposedDate(e.target.value)}
+              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="reason" className="block text-sm font-medium text-slate-700">
+              Reason for Backdate
+            </label>
+            <textarea
+              id="reason"
+              required
+              rows={3}
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              placeholder="Please explain why this deposit is being recorded late..."
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-3 pt-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={submitting || !proposedDate || !reason}
+            className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            Submit Request
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 export default function CustomerDetailPage() {
   const { customerId } = useParams();
   const navigate = useNavigate();
@@ -821,6 +915,10 @@ export default function CustomerDetailPage() {
     mutationError: savingsMutationError,
     selectedPlan,
   } = useSelector((state) => state.savings);
+  const { 
+    requests: backdateRequests,
+    mutationStatus: backdateMutationStatus
+  } = useSelector((state) => state.backdate);
   const { profile: csoProfile } = useSelector((state) => state.csoAuth);
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -846,12 +944,18 @@ export default function CustomerDetailPage() {
   const [isLoanCardModalOpen, setIsLoanCardModalOpen] = useState(false);
   const [isLoanSlotDetailOpen, setIsLoanSlotDetailOpen] = useState(false);
   const [transactionFilter, setTransactionFilter] = useState("all");
-  const [transactionMonthFilter, setTransactionMonthFilter] = useState("all");
+  const [transactionMonthFilter, setTransactionMonthFilter] = useState(new Date().toISOString().slice(0, 7));
   const [summaryMonth, setSummaryMonth] = useState("all");
   const [isConfirmDepositModalOpen, setIsConfirmDepositModalOpen] = useState(false);
   const [pendingDepositValues, setPendingDepositValues] = useState(null);
+  const [isBackdateModalOpen, setIsBackdateModalOpen] = useState(false);
+  const [selectedBackdate, setSelectedBackdate] = useState(null);
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
   const todayKey = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const currentMonthKey = useMemo(() => todayKey.slice(0, 7), [todayKey]);
   const hasRemittanceToday = useMemo(() => {
     const records = csoProfile?.remittance || [];
     return records.some((entry) => {
@@ -881,8 +985,13 @@ export default function CustomerDetailPage() {
     return () => {
       dispatch(clearCustomerState());
       dispatch(clearSavingsState());
+      dispatch(clearBackdateState());
     };
   }, [customerId, dispatch]);
+
+  useEffect(() => {
+    dispatch(fetchCsoBackdateRequests());
+  }, [dispatch]);
 
   const plans = useMemo(() => {
     const customerPlans = savingsPlansByCustomer[customerId] || [];
@@ -949,7 +1058,7 @@ export default function CustomerDetailPage() {
     setOpenPlanActionsId(null);
   }, [planFilter]);
   useEffect(() => {
-    setTransactionMonthFilter("all");
+    setTransactionMonthFilter(new Date().toISOString().slice(0, 7));
   }, [activePlanId]);
   const prefetchedPlanEntriesRef = useRef(new Set());
   useEffect(() => {
@@ -1064,8 +1173,15 @@ export default function CustomerDetailPage() {
   const dailyContributionTarget = Number(currentPlan?.dailyContribution || 0);
   const contributionUnit = dailyContributionTarget > 0 ? dailyContributionTarget : 1;
   const depositDays = useMemo(() => {
+    let sourceEntries = planEntries;
+    if (transactionMonthFilter !== "all" && !isCurrentLoanPlan) {
+      sourceEntries = planEntries.filter(
+        (entry) => getMonthKey(entry.recordedAt || entry.createdAt) === transactionMonthFilter,
+      );
+    }
+
     const grouped = new Map();
-    planEntries.forEach((entry) => {
+    sourceEntries.forEach((entry) => {
       if (entry.type !== "deposit") {
         return;
       }
@@ -1088,7 +1204,7 @@ export default function CustomerDetailPage() {
     });
 
     return Array.from(grouped.values()).sort((a, b) => a.date - b.date);
-  }, [planEntries]);
+  }, [planEntries, transactionMonthFilter, isCurrentLoanPlan]);
 
   const wardCells = useMemo(() => {
     const slots = [];
@@ -1122,6 +1238,9 @@ export default function CustomerDetailPage() {
   }, [depositDays, contributionUnit]);
   const planMonthOptions = useMemo(() => {
     const months = new Set();
+    const currentMonth = new Date().toISOString().slice(0, 7);
+    months.add(currentMonth); // Ensure today's month is always an option
+
     planEntries.forEach((entry) => {
       const key = getMonthKey(entry.recordedAt || entry.createdAt);
       if (key) {
@@ -1180,7 +1299,7 @@ export default function CustomerDetailPage() {
     }
 
     const fallbackLoanAmount = parseAmount(currentPlan.loanDetails?.amount || currentLoanRequest?.amount || 0);
-    const fallbackLoanPaid = parseAmount(currentPlan.availableBalance || 0);
+    const fallbackLoanPaid = parseAmount(currentPlan.totalDeposited || 0);
 
     if (!planEntriesForSelectedMonth) {
       return {
@@ -1222,28 +1341,32 @@ export default function CustomerDetailPage() {
 
       const normalizedType = (entry.type || "").toLowerCase();
 
+      // Primary Financial Metrics Classification
       if (normalizedType === "deposit") {
         totals.totalDeposited += amount;
-      }
-
-      if (normalizedType === "withdrawal") {
+      } else if (normalizedType === "withdrawal") {
         totals.totalWithdrawn += amount;
-      }
-
-      if (normalizedType === "fee") {
+      } else if (normalizedType === "fee") {
         totals.totalFees += amount;
       }
 
+      // Secondary/Loan Metrics tracking
       if (LOAN_DISBURSEMENT_TYPES.has(normalizedType)) {
         totals.loanAmount += amount;
       }
 
       if (LOAN_PAYMENT_TYPES.has(normalizedType)) {
         totals.loanPaid += amount;
+        
+        // Only count as additional deposit if it hasn't been handled as a standard "deposit"
+        // and is not a generic "fee" (like maintenance fee)
+        if (normalizedType !== "deposit" && normalizedType !== "fee") {
+          totals.totalDeposited += amount;
+        }
       }
     });
 
-    const availableBalance = totals.totalDeposited + totals.loanPaid - totals.totalWithdrawn - totals.totalFees;
+    const availableBalance = totals.totalDeposited - totals.totalWithdrawn - totals.totalFees;
 
     return {
       totalDeposited: totals.totalDeposited,
@@ -1256,6 +1379,11 @@ export default function CustomerDetailPage() {
     };
   }, [currentPlan, currentLoanRequest, planEntriesForSelectedMonth]);
   const isPlanCardScopedToMonth = transactionMonthFilter !== "all" && !isCurrentLoanPlan;
+  const planLabelSuffix = useMemo(() => {
+    if (transactionMonthFilter === "all" || isCurrentLoanPlan) return "";
+    if (transactionMonthFilter === currentMonthKey) return " (this month)";
+    return ` (${formatMonthLabel(transactionMonthFilter)})`;
+  }, [transactionMonthFilter, currentMonthKey, isCurrentLoanPlan]);
   const selectedWardSlot = selectedWardCell?.slot ?? null;
   const selectedWardDay = selectedWardCell?.filled ? selectedWardCell.day : null;
   const currentLoanDetails = currentPlan?.loanDetails;
@@ -1319,49 +1447,46 @@ export default function CustomerDetailPage() {
       })
       .sort((a, b) => a.actualDate - b.actualDate);
   }, [contributionUnit, isCurrentLoanPlan, loanDailyRepayment, planEntries]);
+  const loanExpectedUnit = useMemo(
+    () => Number(loanDailyRepayment || contributionUnit || 0),
+    [loanDailyRepayment, contributionUnit],
+  );
   const loanCardSlots = useMemo(() => {
     if (!isCurrentLoanPlan) {
       return [];
     }
-    const slotCount = LOAN_CARD_SLOT_COUNT;
+    const loanAmount = Number(currentLoanDetails?.amount || currentLoanRequest?.amount || 0);
+    const expectedSlots = loanExpectedUnit > 0 ? Math.ceil(loanAmount / loanExpectedUnit) : LOAN_CARD_SLOT_COUNT;
+    
     let startDate;
-    if (loanPayments.length) {
-      startDate = new Date(loanPayments[0].normalizedDate);
-    } else if (currentLoanDetails?.startDate) {
+    if (currentLoanDetails?.startDate) {
       startDate = new Date(currentLoanDetails.startDate);
+    } else if (loanPayments.length) {
+      startDate = new Date(loanPayments[0].normalizedDate);
     } else {
       startDate = new Date();
     }
     startDate.setHours(0, 0, 0, 0);
 
+    const slotCount = LOAN_CARD_SLOT_COUNT;
     const slots = Array.from({ length: slotCount }, (_, index) => {
       const scheduledDate = new Date(startDate);
       scheduledDate.setDate(startDate.getDate() + index);
       return {
         slot: index + 1,
         scheduledDate,
-        payment: null,
+        payment: loanPayments[index] || null, // Map payment units directly to slots by index
       };
     });
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    loanPayments.forEach((payment) => {
-      let targetIndex = slots.findIndex(
-        (slot) => !slot.payment && slot.scheduledDate <= payment.normalizedDate,
-      );
+    const totalDeposited = Number(currentPlan?.totalDeposited || 0);
+    const totalFees = Number(currentPlan?.totalFees || 0);
+    const dailyUnit = loanExpectedUnit > 0 ? loanExpectedUnit : (contributionUnit > 0 ? contributionUnit : 1);
+    const totalPaidUnits = Math.floor((totalDeposited + totalFees) / dailyUnit);
 
-      if (targetIndex === -1) {
-        targetIndex = slots.findIndex((slot) => !slot.payment);
-      }
-
-      if (targetIndex !== -1) {
-        slots[targetIndex].payment = payment;
-      }
-    });
-
-    return slots.map((slot) => {
-      const hasPayment = Boolean(slot.payment);
+    return slots.map((slot, index) => {
+      const isPaidByCount = index < totalPaidUnits;
+      const hasPayment = Boolean(slot.payment) || isPaidByCount;
       let status = "upcoming";
       if (hasPayment) {
         status = "paid";
@@ -1377,7 +1502,7 @@ export default function CustomerDetailPage() {
         status,
       };
     });
-  }, [isCurrentLoanPlan, currentLoanDetails?.startDate, loanPayments]);
+  }, [isCurrentLoanPlan, currentLoanDetails?.startDate, loanPayments, currentPlan?.totalDeposited, currentPlan?.totalFees, loanExpectedUnit, today]);
   const loanCardSummary = useMemo(() => {
     if (!isCurrentLoanPlan) {
       return { paid: 0, missed: 0, upcoming: 0 };
@@ -1399,10 +1524,6 @@ export default function CustomerDetailPage() {
     }
     return loanCardSlots.find((slot) => slot.slot === loanSlotSelection) || null;
   }, [loanSlotSelection, loanCardSlots]);
-  const loanExpectedUnit = useMemo(
-    () => Number(loanDailyRepayment || contributionUnit || 0),
-    [loanDailyRepayment, contributionUnit],
-  );
   const selectedLoanSlotAmount = selectedLoanSlotDetail?.portionAmount ?? loanExpectedUnit;
 
   const handleOpenWard = () => {
@@ -1513,12 +1634,33 @@ export default function CustomerDetailPage() {
 
     setActivePlanId(plan._id);
     const now = new Date();
+    
+    // Find if there's an approved backdate request for this plan
+    const approvedRequest = backdateRequests.find(
+      req => req.planId._id === plan._id && req.status === "approved"
+    );
+
     setDepositFormValues({
       amount: plan.dailyContribution,
       narration: "Daily contribution",
-      recordedAt: now.toISOString(),
+      recordedAt: approvedRequest ? approvedRequest.proposedDate : now.toISOString(),
     });
+    setSelectedBackdate(approvedRequest || null);
     setIsDepositModalOpen(true);
+  };
+
+  const handleBackdateSubmit = (values) => {
+    if (!activePlanId) return;
+    dispatch(createBackdateRequest({
+      planId: activePlanId,
+      proposedDate: values.proposedDate,
+      reason: values.reason
+    })).then((res) => {
+      if (!res.error) {
+        toast.success("Backdate request submitted successfully");
+        setIsBackdateModalOpen(false);
+      }
+    });
   };
 
   const handleOpenWithdrawal = (plan) => {
@@ -1660,8 +1802,7 @@ export default function CustomerDetailPage() {
           const updatedRemaining = Math.max(updatedLoanAmount - updatedNetPaid, 0);
 
           if (updatedRemaining <= 1e-2 && updatedPlan?.status !== "completed") {
-            await dispatch(updateSavingsPlanStatus({ planId: activePlanId, status: "completed" })).unwrap();
-            toast.success("Loan fully repaid. Plan marked as completed.");
+            toast.success("Loan fully repaid. Plan remains active.");
           }
         }
 
@@ -1739,22 +1880,19 @@ export default function CustomerDetailPage() {
     dispatch(
       updateSavingsDailyContribution({
         planId: activePlanId,
-        payload: { dailyContribution: amount },
+        payload: { proposedAmount: amount },
       }),
     )
       .unwrap()
-      .then(({ plan }) => {
+      .then(() => {
         setIsContributionModalOpen(false);
         setContributionUpdateFormValues(defaultContributionUpdateForm);
         toast.success(
-          `Daily contribution updated to ${formatCurrency(amount)}. Maintenance fee deducted automatically.`,
+          `Update request for ${formatCurrency(amount)} sent to admin for approval.`,
         );
-        if (plan?._id) {
-          dispatch(fetchSavingsPlanById(plan._id));
-        }
       })
       .catch((error) => {
-        toast.error(error || "Unable to update daily contribution");
+        toast.error(error || "Unable to submit contribution update request");
       });
   };
 
@@ -2097,7 +2235,10 @@ export default function CustomerDetailPage() {
                 const hideWithdrawalAction =
                   isLoanPlan && ["active", "approved", "disbursed"].includes(normalizedLoanStatus);
                 const canEditContribution =
-                  !isLoanPlan && normalizedPlanStatus === "active" && (plan.dailyContribution || 0) > 0;
+                  !isLoanPlan && 
+                  normalizedPlanStatus === "active" && 
+                  (plan.dailyContribution || 0) > 0 &&
+                  plan.latestContributionUpdateRequest?.status !== "pending";
 
                 const cardTone = isLoanPlan
                   ? "border-indigo-500 bg-indigo-50/80 shadow-indigo-100 shadow-xl ring-2 ring-indigo-500/20"
@@ -2140,12 +2281,18 @@ export default function CustomerDetailPage() {
                           Daily ₦{Number(plan.dailyContribution).toLocaleString()} • Available ₦
                           {Number(plan.availableBalance).toLocaleString()}
                         </p>
-                        {plan.targetAmount ? (
-                          <p className="text-xs text-slate-400">
-                            Target ₦{Number(plan.targetAmount).toLocaleString()} • Started {new Date(plan.startDate).toLocaleDateString()}
-                          </p>
-                        ) : null}
-                      </div>
+                          {plan.targetAmount ? (
+                            <p className="text-xs text-slate-400">
+                              Target ₦{Number(plan.targetAmount).toLocaleString()} • Started {new Date(plan.startDate).toLocaleDateString()}
+                            </p>
+                          ) : null}
+                          {plan.latestContributionUpdateRequest?.status === "pending" && (
+                            <div className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700 border border-amber-200">
+                              <AlertCircle className="h-3.5 w-3.5" />
+                              Update Pending: ₦{Number(plan.latestContributionUpdateRequest.proposedAmount).toLocaleString()}
+                            </div>
+                          )}
+                        </div>
 
                       <div className="flex flex-wrap items-center justify-center gap-2 text-xs font-semibold sm:justify-start">
                         <button
@@ -2261,19 +2408,45 @@ export default function CustomerDetailPage() {
                             <Loader2 className="h-4 w-4 animate-spin" /> Loading plan details…
                           </div>
                         ) : (
-                          <div className="space-y-4">
-                            <div
-                              className={`grid grid-cols-1 gap-4 ${
-                                isCurrentLoanPlan
-                                  ? "sm:grid-cols-2 md:grid-cols-3"
-                                  : "sm:grid-cols-2 md:grid-cols-4"
-                              }`}
-                            >
+  <div className="space-y-4">
+    {/* Month Selector for Plan Card */}
+    {!isCurrentLoanPlan && (
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200 pb-4">
+        <div>
+          <h4 className="text-sm font-semibold text-slate-800">Monthly View</h4>
+          <p className="text-xs text-slate-500">Review metrics and activity for the selected period.</p>
+        </div>
+        <div className="flex items-center gap-2 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-sm font-semibold text-primary shadow-sm">
+          <CalendarDays className="h-4 w-4 text-primary" />
+          <select
+            id={`plan-card-month-filter-${activePlanId || "all"}`}
+            value={transactionMonthFilter}
+            onChange={(event) => setTransactionMonthFilter(event.target.value)}
+            className="bg-transparent text-sm font-bold focus:outline-none cursor-pointer"
+          >
+            <option value="all">All time records</option>
+            {planMonthOptions.map((option) => (
+              <option key={option} value={option} className="text-slate-900">
+                {formatMonthLabel(option)}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+    )}
+
+    <div
+      className={`grid grid-cols-1 gap-4 ${
+        isCurrentLoanPlan
+          ? "sm:grid-cols-2 md:grid-cols-3"
+          : "sm:grid-cols-2 md:grid-cols-4"
+      }`}
+    >
                             {isCurrentLoanPlan ? (
                               <>
                                 <div>
                                   <p className="text-xs uppercase tracking-wide text-slate-400">
-                                    Loan Amount{isPlanCardScopedToMonth ? " (this month)" : ""}
+                                    Loan Amount{planLabelSuffix}
                                   </p>
                                   <p className="mt-1 text-base font-semibold text-slate-900">
                                     {formatCurrency(
@@ -2285,28 +2458,25 @@ export default function CustomerDetailPage() {
                                 </div>
                                 <div>
                                   <p className="text-xs uppercase tracking-wide text-slate-400">
-                                    Paid So Far{isPlanCardScopedToMonth ? " (this month)" : ""}
+                                    Paid So Far{planLabelSuffix}
                                   </p>
                                   <p className="mt-1 text-base font-semibold text-emerald-600">
                                     {formatCurrency(
                                       isPlanCardScopedToMonth
                                         ? planCardMetrics.loanPaid
-                                        : parseAmount(currentPlan.availableBalance || 0),
+                                        : planCardMetrics.loanPaid
                                     )}
                                   </p>
                                 </div>
                                 <div>
                                   <p className="text-xs uppercase tracking-wide text-slate-400">
-                                    Loan Balance (Owed){isPlanCardScopedToMonth ? " (this month)" : ""}
+                                    Loan Balance (Owed){planLabelSuffix}
                                   </p>
                                   <p className="mt-1 text-base font-semibold text-rose-600">
                                     {formatCurrency(
                                       isPlanCardScopedToMonth
                                         ? planCardMetrics.loanBalance
-                                        : parseAmount(
-                                            (currentPlan.loanDetails?.amount || currentLoanRequest?.amount || 0) -
-                                              (currentPlan.availableBalance || 0),
-                                          ),
+                                        : planCardMetrics.loanBalance
                                     )}
                                   </p>
                                 </div>
@@ -2332,7 +2502,7 @@ export default function CustomerDetailPage() {
                                 ) : null}
                                 <div>
                                   <p className="text-xs uppercase tracking-wide text-slate-400">
-                                    Total deposited{isPlanCardScopedToMonth ? " (this month)" : ""}
+                                    Total deposited{planLabelSuffix}
                                   </p>
                                   <p className="mt-1 text-base font-semibold text-slate-900">
                                     {formatCurrency(
@@ -2344,7 +2514,7 @@ export default function CustomerDetailPage() {
                                 </div>
                                 <div>
                                   <p className="text-xs uppercase tracking-wide text-slate-400">
-                                    Maintenance fees{isPlanCardScopedToMonth ? " (this month)" : ""}
+                                    Maintenance fees{planLabelSuffix}
                                   </p>
                                   <p className="mt-1 text-base font-semibold text-slate-900">
                                     {formatCurrency(
@@ -2443,24 +2613,6 @@ export default function CustomerDetailPage() {
                                       );
                                     })}
                                   </div>
-                                  {!isCurrentLoanPlan ? (
-                                    <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-600 shadow-sm">
-                                      <CalendarDays className="h-3.5 w-3.5 text-slate-400" />
-                                      <select
-                                        id={`plan-month-filter-${activePlanId || "all"}`}
-                                        value={transactionMonthFilter}
-                                        onChange={(event) => setTransactionMonthFilter(event.target.value)}
-                                        className="bg-transparent text-xs font-semibold focus:outline-none"
-                                      >
-                                        <option value="all">All time</option>
-                                        {planMonthOptions.map((option) => (
-                                          <option key={option} value={option}>
-                                            {formatMonthLabel(option)}
-                                          </option>
-                                        ))}
-                                      </select>
-                                    </div>
-                                  ) : null}
                                   {!isCurrentLoanPlan ? (
                                     <button
                                       type="button"
@@ -2573,6 +2725,25 @@ export default function CustomerDetailPage() {
             {savingsMutationError}
           </div>
         ) : null}
+        <div className="mb-4 flex items-center justify-between rounded-xl bg-slate-50 p-3">
+          <div className="flex items-center gap-2">
+            <CalendarDays className="h-5 w-5 text-slate-400" />
+            <span className="text-sm font-medium text-slate-600">
+              {selectedBackdate ? "Approved Backdate" : "Recording for Today"}
+            </span>
+          </div>
+          {!selectedBackdate && (
+            <button
+              onClick={() => {
+                setIsDepositModalOpen(false);
+                setIsBackdateModalOpen(true);
+              }}
+              className="text-xs font-semibold text-primary hover:underline"
+            >
+              Request Backdate
+            </button>
+          )}
+        </div>
         <ContributionForm
           initialValues={depositFormValues}
           onSubmit={handleDepositSubmit}
@@ -2581,6 +2752,7 @@ export default function CustomerDetailPage() {
           icon={Download}
           minDate={getPlanStartDate(plansById[activePlanId] || plans.find((item) => item._id === activePlanId))}
           maxDate={new Date().toISOString()}
+          readOnlyDate={!selectedBackdate}
         />
       </Modal>
 
@@ -2657,12 +2829,19 @@ export default function CustomerDetailPage() {
       </Modal>
       <Modal
         open={isContributionModalOpen}
-        title="Update daily contribution"
+        title="Request daily contribution update"
         onClose={() => {
           setIsContributionModalOpen(false);
           setContributionUpdateFormValues(defaultContributionUpdateForm);
         }}
       >
+        <div className="mb-4 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+          <p>
+            This request will be sent to an <strong>Administrator</strong> for approval. The new
+            daily amount and maintenance fee will only be applied once approved.
+          </p>
+        </div>
         {savingsMutationError ? (
           <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">
             {savingsMutationError}
@@ -2671,20 +2850,16 @@ export default function CustomerDetailPage() {
         <ContributionForm
           initialValues={{
             amount: contributionUpdateFormValues.dailyContribution,
-            narration: "Daily contribution update",
+            narration: "Daily contribution update request",
             recordedAt: new Date().toISOString().slice(0, 10),
           }}
           onSubmit={(formValues) =>
             handleContributionUpdateSubmit({ dailyContribution: formValues.amount })
           }
           submitting={savingsLoading}
-          actionLabel="Apply update"
-          icon={Pencil}
+          actionLabel="Submit request"
+          icon={Send}
         />
-        <p className="mt-4 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-500">
-          We will immediately deduct the first daily contribution amount as maintenance
-          fee and adjust the plan balance automatically.
-        </p>
       </Modal>
       <LoanRequestModal
         open={isLoanModalOpen}
@@ -2812,7 +2987,7 @@ export default function CustomerDetailPage() {
       </Modal>
       <Modal
         open={isWardModalOpen}
-        title="Contribution card"
+        title={`Contribution card - ${transactionMonthFilter === "all" ? "All Time" : formatMonthLabel(transactionMonthFilter)}`}
         onClose={handleCloseWard}
         widthClass="max-w-5xl"
       >
@@ -2926,6 +3101,14 @@ export default function CustomerDetailPage() {
           </div>
         )}
       </Modal>
+
+      <BackdateRequestModal
+        isOpen={isBackdateModalOpen}
+        onClose={() => setIsBackdateModalOpen(false)}
+        onSubmit={handleBackdateSubmit}
+        submitting={backdateMutationStatus === "loading"}
+        plan={plansById[activePlanId] || plans.find((item) => item._id === activePlanId)}
+      />
     </div>
   );
 }

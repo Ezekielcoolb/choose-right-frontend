@@ -43,7 +43,7 @@ export default function ManagerCsosPage() {
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">Branch CSOs</h1>
           <p className="mt-1 text-sm text-slate-500">
-            View all Customer Success Officers assigned to your branch.
+            View all Customer Success Officers.
           </p>
         </div>
         <div className="relative w-full max-w-sm">

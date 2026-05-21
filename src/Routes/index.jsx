@@ -17,6 +17,8 @@ import AdminCustomerPlanDetail from "../Users/AdminPages/Customers/AdminCustomer
 import AdminLoans from "../Users/AdminPages/Loans/AdminLoans";
 import AdminNewLoans from "../Users/AdminPages/Loans/AdminNewLoans";
 import WithdrawalRequest from "../Users/AdminPages/Withdrawal/WithdrawalRequest";
+import BackdateRequests from "../Users/AdminPages/Backdate/BackdateRequests";
+import ContributionUpdates from "../Users/AdminPages/ContributionUpdates/ContributionUpdates";
 import ProductPage from "../Users/csoPages/Products/Product";
 import CsoCollectionPage from "../Users/csoPages/csoCollection";
 import CsoProfilePage from "../Users/csoPages/csoProfile";
@@ -39,6 +41,7 @@ import ManagerCsoDetailPage from "../Users/ManagerPages/ManagerCsoDetail";
 import ManagerCustomerDetailPage from "../Users/ManagerPages/ManagerCustomerDetail";
 import ManagerCustomerPlansPage from "../Users/ManagerPages/ManagerCustomerPlans";
 import ManagerCustomerPlanDetailPage from "../Users/ManagerPages/ManagerCustomerPlanDetail";
+import ManagerWithdrawals from "../Users/ManagerPages/ManagerWithdrawals";
 import ManagerLoginPage from "../Users/ManagerPages/ManagerLogin";
 import CustomerController from "../Controller/customerController";
 import CustomerLoginPage from "../Users/CustomerPages/CustomerLogin";
@@ -71,6 +74,7 @@ export default function Routess() {
                        { path: "/admin/cso", element: <CsoPage /> },
                        { path: "/admin", element: <AdminDashboard /> },
                        { path: "/admin/withdraw", element: <WithdrawalRequest /> },
+                       { path: "/admin/backdate-requests", element: <BackdateRequests /> },
                        { path: "/admin/cso", element: <CsoPage /> },
                        { path: "/admin/cso/:csoId", element: <CsoDetailPage /> },
                        { path: "/admin/panel", element: <AdminPanelPage /> },
@@ -83,6 +87,7 @@ export default function Routess() {
                        { path: "/admin/customers", element: <AdminCustomers /> },
                        { path: "/admin/maintenance", element: <Maintenance /> },
                        { path: "/admin/settings", element: <AdminSettingsPage /> },
+                       { path: "/admin/contribution-updates", element: <ContributionUpdates /> },
                        { path: "/admin/customers/:customerId", element: <AdminCustomerDetail /> },
                        { path: "/admin/customers/:customerId/plans", element: <AdminCustomerPlans /> },
                        { path: "/admin/customers/:customerId/plans/:planId", element: <AdminCustomerPlanDetail /> },
@@ -130,6 +135,7 @@ export default function Routess() {
                         { path: "/manager/customers/:id/plans", element: <ManagerCustomerPlansPage /> },
                         { path: "/manager/customers/:customerId/plans/:planId", element: <ManagerCustomerPlanDetailPage /> },
                         { path: "/manager/transactions", element: <ManagerTransactionsPage /> },
+                        { path: "/manager/withdrawals", element: <ManagerWithdrawals /> },
                         { path: "/manager/settings", element: <ManagerSettingsPage /> },
                     ],
                 },

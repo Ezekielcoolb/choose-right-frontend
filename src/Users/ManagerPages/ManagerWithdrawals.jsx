@@ -2,17 +2,11 @@ import { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { toast } from "react-hot-toast";
 import {
-  fetchAdminWithdrawalRequests,
-  approveMultipleWithdrawals,
-  rejectMultipleWithdrawals,
-  clearAdminWithdrawalState,
-} from "../../../redux/slices/adminWithdrawalSlice";
-import { fetchCsos } from "../../../redux/slices/csoSlice";
-
+  fetchManagerWithdrawals,
+  fetchManagerCsos,
+} from "../../redux/slices/managerDataSlice";
 import {
   Loader2,
-  CheckCircle2,
-  XCircle,
   Eye,
   Clock3,
   Wallet,
@@ -20,14 +14,9 @@ import {
   ArrowLeftRight,
   Search,
   Users,
-  CheckSquare,
-  Square,
-  Trash2,
   Calendar,
-  Filter,
   ChevronDown,
 } from "lucide-react";
-
 
 const statusConfig = {
   pending: {
@@ -65,10 +54,16 @@ function WithdrawalDetailsModal({ request, onClose }) {
       <div className="relative w-full max-w-3xl overflow-hidden rounded-3xl bg-white shadow-2xl">
         <header className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
           <div>
-            <h2 className="text-lg font-semibold text-slate-900">Withdrawal Request Details</h2>
-            <p className="text-xs text-slate-500">{formatDate(request.createdAt)}</p>
+            <h2 className="text-lg font-semibold text-slate-900">
+              Withdrawal Details
+            </h2>
+            <p className="text-xs text-slate-500">
+              {formatDate(request.createdAt)}
+            </p>
           </div>
-          <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${statusInfo.className}`}>
+          <span
+            className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${statusInfo.className}`}
+          >
             {statusInfo.label}
           </span>
         </header>
@@ -78,60 +73,96 @@ function WithdrawalDetailsModal({ request, onClose }) {
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <div className="mb-3 flex items-center gap-2 text-slate-500">
                 <UserCircle2 className="h-4 w-4" />
-                <span className="text-xs font-semibold uppercase tracking-wide">Customer</span>
+                <span className="text-xs font-semibold uppercase tracking-wide">
+                  Customer
+                </span>
               </div>
               <p className="text-sm font-semibold text-slate-900">
                 {request.customerId?.firstName} {request.customerId?.lastName}
               </p>
-              <p className="text-xs text-slate-500">{request.customerId?.phone || "No phone"}</p>
-              <p className="mt-1 text-xs text-slate-500">{request.customerId?.address || "No address"}</p>
+              <p className="text-xs text-slate-500">
+                {request.customerId?.phone || "No phone"}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                {request.customerId?.address || "No address"}
+              </p>
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <div className="mb-3 flex items-center gap-2 text-slate-500">
                 <Wallet className="h-4 w-4" />
-                <span className="text-xs font-semibold uppercase tracking-wide">Plan</span>
+                <span className="text-xs font-semibold uppercase tracking-wide">
+                  Plan
+                </span>
               </div>
-              <p className="text-sm font-semibold text-slate-900">{request.planId?.planName || "Unknown plan"}</p>
-              <p className="text-xs text-slate-500">
-                Daily Contribution: {formatAmount(request.planId?.dailyContribution || 0)}
+              <p className="text-sm font-semibold text-slate-900">
+                {request.planId?.planName || "Unknown plan"}
               </p>
-              <p className="text-xs text-slate-500">Available Balance: {formatAmount(request.planId?.availableBalance || 0)}</p>
+              <p className="text-xs text-slate-500">
+                Daily Contribution:{" "}
+                {formatAmount(request.planId?.dailyContribution || 0)}
+              </p>
+              <p className="text-xs text-slate-500">
+                Available Balance:{" "}
+                {formatAmount(request.planId?.availableBalance || 0)}
+              </p>
             </div>
           </section>
 
           <section className="rounded-2xl border border-slate-200 bg-white p-4">
-            <h3 className="mb-3 text-sm font-semibold text-slate-900">Request Summary</h3>
+            <h3 className="mb-3 text-sm font-semibold text-slate-900">
+              Request Summary
+            </h3>
             <div className="grid gap-3 md:grid-cols-2">
               <div className="space-y-1">
-                <p className="text-xs font-medium uppercase text-slate-500">Requested Amount</p>
-                <p className="text-base font-semibold text-slate-900">{formatAmount(request.amount)}</p>
+                <p className="text-xs font-medium uppercase text-slate-500">
+                  Requested Amount
+                </p>
+                <p className="text-base font-semibold text-slate-900">
+                  {formatAmount(request.amount)}
+                </p>
               </div>
               <div className="space-y-1">
-                <p className="text-xs font-medium uppercase text-slate-500">Requested On</p>
-                <p className="text-xs text-slate-600">{formatDate(request.createdAt)}</p>
+                <p className="text-xs font-medium uppercase text-slate-500">
+                  Requested On
+                </p>
+                <p className="text-xs text-slate-600">
+                  {formatDate(request.createdAt)}
+                </p>
               </div>
               <div className="space-y-1">
-                <p className="text-xs font-medium uppercase text-slate-500">Preferred Date</p>
-                <p className="text-xs text-slate-600">{formatDate(request.recordedAt)}</p>
+                <p className="text-xs font-medium uppercase text-slate-500">
+                  Preferred Date
+                </p>
+                <p className="text-xs text-slate-600">
+                  {formatDate(request.recordedAt)}
+                </p>
               </div>
               <div className="space-y-1">
-                <p className="text-xs font-medium uppercase text-slate-500">CSO</p>
+                <p className="text-xs font-medium uppercase text-slate-500">
+                  CSO
+                </p>
                 <p className="text-sm font-semibold text-slate-900">
                   {request.csoId?.firstName} {request.csoId?.lastName}
                 </p>
               </div>
             </div>
             <div className="mt-4">
-              <p className="text-xs font-medium uppercase text-slate-500">Narration</p>
-              <p className="mt-1 text-sm text-slate-700">{request.narration || "No narration provided"}</p>
+              <p className="text-xs font-medium uppercase text-slate-500">
+                Narration
+              </p>
+              <p className="mt-1 text-sm text-slate-700">
+                {request.narration || "No narration provided"}
+              </p>
             </div>
 
             {request.status !== "pending" ? (
               <div className="mt-4 grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600 md:grid-cols-2">
                 <div>
                   <p className="font-semibold text-slate-500">Processed By</p>
-                  <p className="text-sm text-slate-700">{request.processedBy || "—"}</p>
+                  <p className="text-sm text-slate-700">
+                    {request.processedBy || "—"}
+                  </p>
                 </div>
                 <div>
                   <p className="font-semibold text-slate-500">Processed At</p>
@@ -139,8 +170,12 @@ function WithdrawalDetailsModal({ request, onClose }) {
                 </div>
                 {request.responseNote ? (
                   <div className="md:col-span-2">
-                    <p className="font-semibold text-slate-500">Response Note</p>
-                    <p className="mt-1 text-sm text-slate-700">{request.responseNote}</p>
+                    <p className="font-semibold text-slate-500">
+                      Response Note
+                    </p>
+                    <p className="mt-1 text-sm text-slate-700">
+                      {request.responseNote}
+                    </p>
                   </div>
                 ) : null}
               </div>
@@ -162,27 +197,26 @@ function WithdrawalDetailsModal({ request, onClose }) {
   );
 }
 
-export default function WithdrawalRequest() {
+export default function ManagerWithdrawals() {
   const dispatch = useDispatch();
+  const { withdrawals, csos } = useSelector((state) => state.managerData);
   const {
-    items,
-    total,
-    totalAmount,
-    page,
-    pages,
+    data: withdrawalData,
     status,
-    statusFilter,
     error,
-    mutationStatus,
-    mutationError,
-  } = useSelector((state) => state.adminWithdrawals);
-  const { items: csos } = useSelector((state) => state.csos);
+  } = withdrawals;
+  const { data: csoList } = csos;
+
+  const items = withdrawalData?.items || [];
+  const total = withdrawalData?.total || 0;
+  const page = withdrawalData?.page || 1;
+  const pages = withdrawalData?.pages || 0;
 
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [pageSize, setPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
   const [searchTerm, setSearchTerm] = useState("");
   const [csoFilter, setCsoFilter] = useState("all");
-  const [selectedIds, setSelectedIds] = useState([]);
+  const [statusFilter, setStatusFilter] = useState("pending");
 
   // Date Filter States
   const [dateRange, setDateRange] = useState("all");
@@ -193,45 +227,39 @@ export default function WithdrawalRequest() {
   const [showDateFilters, setShowDateFilters] = useState(false);
 
   useEffect(() => {
-    console.log("WithdrawalRequest items updated:", items);
-  }, [items]);
-
-  useEffect(() => {
-    dispatch(fetchAdminWithdrawalRequests({ status: statusFilter, page: 1, limit: pageSize }));
-
-    dispatch(fetchCsos());
-    return () => {
-      dispatch(clearAdminWithdrawalState());
-    };
+    dispatch(
+      fetchManagerWithdrawals({ status: statusFilter, page: 1, limit: pageSize }),
+    );
+    dispatch(fetchManagerCsos());
   }, [dispatch]);
-
 
   useEffect(() => {
     if (error) {
       toast.error(error);
     }
-  }, [error]);
-
-  useEffect(() => {
-    if (mutationError) {
-      toast.error(mutationError);
-    }
-  }, [mutationError]);
+  }, [error, statusFilter]);
 
   const isLoading = status === "loading";
-  const isMutating = mutationStatus === "loading";
 
   const fetchRequests = (overrides = {}) => {
     dispatch(
-      fetchAdminWithdrawalRequests({
+      fetchManagerWithdrawals({
         status: overrides.status || statusFilter,
         csoId: overrides.csoId !== undefined ? overrides.csoId : csoFilter,
         search: overrides.search !== undefined ? overrides.search : searchTerm,
-        dateRange: overrides.dateRange !== undefined ? overrides.dateRange : dateRange,
-        startDate: overrides.startDate !== undefined ? overrides.startDate : startDate,
+        dateRange:
+          overrides.dateRange !== undefined ? overrides.dateRange : dateRange,
+        startDate:
+          overrides.startDate !== undefined ? overrides.startDate : startDate,
         endDate: overrides.endDate !== undefined ? overrides.endDate : endDate,
-        specificDate: overrides.specificDate !== undefined ? overrides.specificDate : specificDate,
-        specificMonth: overrides.specificMonth !== undefined ? overrides.specificMonth : specificMonth,
+        specificDate:
+          overrides.specificDate !== undefined
+            ? overrides.specificDate
+            : specificDate,
+        specificMonth:
+          overrides.specificMonth !== undefined
+            ? overrides.specificMonth
+            : specificMonth,
         page: overrides.page || page,
         limit: overrides.limit || pageSize,
       }),
@@ -240,7 +268,6 @@ export default function WithdrawalRequest() {
 
   const handleDateRangeChange = (range, additionalOverrides = {}) => {
     setDateRange(range);
-    setSelectedIds([]);
     fetchRequests({ dateRange: range, page: 1, ...additionalOverrides });
   };
 
@@ -248,7 +275,12 @@ export default function WithdrawalRequest() {
     if (startDate && endDate) {
       setSpecificDate("");
       setSpecificMonth("");
-      handleDateRangeChange("custom", { startDate, endDate, specificDate: "", specificMonth: "" });
+      handleDateRangeChange("custom", {
+        startDate,
+        endDate,
+        specificDate: "",
+        specificMonth: "",
+      });
     }
   };
 
@@ -258,7 +290,6 @@ export default function WithdrawalRequest() {
     setEndDate("");
     setSpecificDate("");
     setSpecificMonth("");
-    setSelectedIds([]);
     fetchRequests({
       dateRange: "all",
       startDate: "",
@@ -271,69 +302,23 @@ export default function WithdrawalRequest() {
 
   const handleFilterChange = (filter) => {
     if (filter === statusFilter && status === "succeeded") return;
-    setSelectedIds([]);
+    setStatusFilter(filter);
     fetchRequests({ status: filter, page: 1 });
   };
 
   const handleCsoFilterChange = (csoId) => {
     setCsoFilter(csoId);
-    setSelectedIds([]);
     fetchRequests({ csoId, page: 1 });
   };
 
   const handleSearch = (e) => {
     const value = e.target.value;
     setSearchTerm(value);
-    setSelectedIds([]);
     fetchRequests({ search: value, page: 1 });
   };
 
-
   const handleRefresh = () => {
     fetchRequests();
-  };
-
-  const handleBulkApprove = () => {
-    if (!selectedIds.length) return;
-    if (!window.confirm(`Approve ${selectedIds.length} selected withdrawal requests?`)) return;
-
-    dispatch(approveMultipleWithdrawals(selectedIds))
-      .unwrap()
-      .then((res) => {
-        toast.success(res.message);
-        setSelectedIds([]);
-        fetchRequests();
-      })
-      .catch((err) => toast.error(err));
-  };
-
-  const handleBulkReject = () => {
-    if (!selectedIds.length) return;
-    const note = window.prompt(`Add a rejection note for ${selectedIds.length} requests:`);
-    if (note === null) return;
-
-    dispatch(rejectMultipleWithdrawals({ requestIds: selectedIds, note }))
-      .unwrap()
-      .then((res) => {
-        toast.success(res.message);
-        setSelectedIds([]);
-        fetchRequests();
-      })
-      .catch((err) => toast.error(err));
-  };
-
-  const toggleSelectAll = () => {
-    if (selectedIds.length === (items?.length || 0)) {
-      setSelectedIds([]);
-    } else {
-      setSelectedIds((items || []).map((item) => item._id));
-    }
-  };
-
-  const toggleSelect = (id) => {
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
-    );
   };
 
   const handlePrevPage = () => {
@@ -349,13 +334,16 @@ export default function WithdrawalRequest() {
     fetchRequests({ limit: newSize, page: 1 });
   };
 
-
   return (
     <div className="space-y-6 p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Withdrawal Requests</h1>
-          <p className="text-sm text-slate-500">Approve or reject withdrawal requests submitted by CSOs.</p>
+          <h1 className="text-2xl font-bold text-slate-900">
+            Withdrawal Requests
+          </h1>
+          <p className="text-sm text-slate-500">
+            View withdrawal requests submitted by CSOs in your branch.
+          </p>
         </div>
         <button
           type="button"
@@ -390,14 +378,6 @@ export default function WithdrawalRequest() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          {/* Total Amount Display */}
-          <div className="flex items-center gap-2 rounded-full bg-primary/10 px-4 py-2 border border-primary/20">
-            <Wallet className="h-4 w-4 text-primary" />
-            <span className="text-sm font-bold text-primary">
-              Total: {formatAmount(totalAmount)}
-            </span>
-          </div>
-
           <button
             onClick={() => setShowDateFilters(!showDateFilters)}
             className={`flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition ${
@@ -408,7 +388,11 @@ export default function WithdrawalRequest() {
           >
             <Calendar className="h-4 w-4" />
             <span>Date Filter</span>
-            <ChevronDown className={`h-4 w-4 transition-transform ${showDateFilters ? "rotate-180" : ""}`} />
+            <ChevronDown
+              className={`h-4 w-4 transition-transform ${
+                showDateFilters ? "rotate-180" : ""
+              }`}
+            />
           </button>
 
           <div className="relative">
@@ -430,7 +414,7 @@ export default function WithdrawalRequest() {
               className="text-sm bg-transparent focus:outline-none"
             >
               <option value="all">All CSOs</option>
-              {csos?.map((cso) => (
+              {csoList?.map((cso) => (
                 <option key={cso._id} value={cso._id}>
                   {cso.firstName} {cso.lastName}
                 </option>
@@ -473,7 +457,9 @@ export default function WithdrawalRequest() {
 
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-2">
-              <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">Specific Date</label>
+              <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Specific Date
+              </label>
               <div className="relative">
                 <Calendar className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <input
@@ -500,7 +486,9 @@ export default function WithdrawalRequest() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">Specific Month</label>
+              <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Specific Month
+              </label>
               <div className="relative">
                 <Calendar className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <input
@@ -527,7 +515,9 @@ export default function WithdrawalRequest() {
             </div>
 
             <div className="sm:col-span-2 space-y-2">
-              <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">Custom Range</label>
+              <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Custom Range
+              </label>
               <div className="flex items-center gap-2">
                 <input
                   type="date"
@@ -555,36 +545,11 @@ export default function WithdrawalRequest() {
         </div>
       )}
 
-      {selectedIds.length > 0 && statusFilter === "pending" && (
-        <div className="flex items-center gap-3 rounded-2xl bg-primary/5 border border-primary/10 p-4 animate-in fade-in slide-in-from-top-2">
-          <span className="text-sm font-semibold text-primary">
-            {selectedIds.length} items selected
-          </span>
-          <div className="flex items-center gap-2 ml-auto">
-            <button
-              onClick={handleBulkApprove}
-              disabled={isMutating}
-              className="flex items-center gap-2 rounded-full bg-emerald-600 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-emerald-700 transition-colors disabled:opacity-50"
-            >
-              <CheckCircle2 className="h-4 w-4" /> Approve Selected
-            </button>
-            <button
-              onClick={handleBulkReject}
-              disabled={isMutating}
-              className="flex items-center gap-2 rounded-full bg-rose-600 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-rose-700 transition-colors disabled:opacity-50"
-            >
-              <XCircle className="h-4 w-4" /> Reject Selected
-            </button>
-          </div>
-        </div>
-      )}
-
-
       {isLoading ? (
         <div className="flex justify-center py-16">
           <Loader2 className="h-10 w-10 animate-spin text-primary" />
         </div>
-      ) : (items?.length || 0) === 0 ? (
+      ) : items.length === 0 ? (
         <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 py-16 text-center text-slate-500">
           No {statusFilter} withdrawal requests found.
         </div>
@@ -593,56 +558,67 @@ export default function WithdrawalRequest() {
           <table className="min-w-full divide-y divide-slate-200 text-sm">
             <thead className="bg-slate-50">
               <tr>
-                <th className="w-10 px-4 py-3">
-                  <button onClick={toggleSelectAll} className="text-slate-400 hover:text-primary transition-colors">
-                    {selectedIds.length === (items?.length || 0) && (items?.length || 0) > 0 ? (
-                      <CheckSquare className="h-4 w-4 text-primary" />
-                    ) : (
-                      <Square className="h-4 w-4" />
-                    )}
-                  </button>
-                </th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">
                   {statusFilter === "pending" ? "Created" : "Processed"}
                 </th>
-                <th className="px-4 py-3 text-left font-semibold text-slate-700">Customer</th>
-                <th className="px-4 py-3 text-left font-semibold text-slate-700">Plan</th>
-                <th className="px-4 py-3 text-left font-semibold text-slate-700">Amount</th>
-                <th className="px-4 py-3 text-left font-semibold text-slate-700">CSO</th>
-                <th className="px-4 py-3 text-left font-semibold text-slate-700">Status</th>
-                <th className="px-4 py-3 text-right font-semibold text-slate-700">Actions</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-700">
+                  Customer
+                </th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-700">
+                  Plan
+                </th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-700">
+                  Amount
+                </th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-700">
+                  CSO
+                </th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-700">
+                  Status
+                </th>
+                <th className="px-4 py-3 text-right font-semibold text-slate-700">
+                  Actions
+                </th>
               </tr>
             </thead>
 
             <tbody className="divide-y divide-slate-100">
-              {(items || []).map((request) => {
-                const info = statusConfig[request.status] || statusConfig.pending;
-                const isSelected = selectedIds.includes(request._id);
+              {items.map((request) => {
+                const info =
+                  statusConfig[request.status] || statusConfig.pending;
                 return (
-                  <tr key={request._id} className={`hover:bg-slate-50 transition-colors ${isSelected ? "bg-primary/5" : ""}`}>
-                    <td className="px-4 py-3">
-                      <button onClick={() => toggleSelect(request._id)} className="text-slate-400 hover:text-primary transition-colors">
-                        {isSelected ? (
-                          <CheckSquare className="h-4 w-4 text-primary" />
-                        ) : (
-                          <Square className="h-4 w-4" />
-                        )}
-                      </button>
-                    </td>
+                  <tr
+                    key={request._id}
+                    className="hover:bg-slate-50 transition-colors"
+                  >
                     <td className="px-4 py-3 text-xs text-slate-500">
-                      {formatDate(request.status === "pending" ? request.createdAt : request.processedAt)}
+                      {formatDate(
+                        request.status === "pending"
+                          ? request.createdAt
+                          : request.processedAt,
+                      )}
                     </td>
                     <td className="px-4 py-3 text-sm font-semibold text-slate-900">
-                      {request.customerId ? `${request.customerId.firstName} ${request.customerId.lastName}` : "No Customer"}
+                      {request.customerId
+                        ? `${request.customerId.firstName} ${request.customerId.lastName}`
+                        : "No Customer"}
                     </td>
-                    <td className="px-4 py-3 text-xs text-slate-600">{request.planId?.planName || "No Plan"}</td>
-                    <td className="px-4 py-3 text-sm font-semibold text-slate-900">{formatAmount(request.amount)}</td>
                     <td className="px-4 py-3 text-xs text-slate-600">
-                      {request.csoId ? `${request.csoId.firstName} ${request.csoId.lastName}` : "No CSO"}
+                      {request.planId?.planName || "No Plan"}
+                    </td>
+                    <td className="px-4 py-3 text-sm font-semibold text-slate-900">
+                      {formatAmount(request.amount)}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-slate-600">
+                      {request.csoId
+                        ? `${request.csoId.firstName} ${request.csoId.lastName}`
+                        : "No CSO"}
                     </td>
 
                     <td className="px-4 py-3">
-                      <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${info.className}`}>
+                      <span
+                        className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${info.className}`}
+                      >
                         <ArrowLeftRight className="h-3.5 w-3.5" />
                         {info.label}
                       </span>
@@ -658,50 +634,6 @@ export default function WithdrawalRequest() {
                         >
                           <Eye className="h-4 w-4" />
                         </button>
-                        {request.status === "pending" ? (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (window.confirm("Approve this withdrawal request?")) {
-                                  dispatch(approveMultipleWithdrawals([request._id]))
-                                    .unwrap()
-                                    .then(() => {
-                                      toast.success("Withdrawal approved");
-                                      fetchRequests();
-                                    })
-                                    .catch((err) => toast.error(err));
-                                }
-                              }}
-                              disabled={isMutating}
-                              className="rounded-lg bg-emerald-100 p-2 text-emerald-700 transition hover:bg-emerald-200 disabled:opacity-50"
-                              title="Approve"
-                            >
-                              <CheckCircle2 className="h-4 w-4" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const note = window.prompt("Add an optional note for the rejection:");
-                                if (note !== null) {
-                                  dispatch(rejectMultipleWithdrawals({ requestIds: [request._id], note }))
-                                    .unwrap()
-                                    .then(() => {
-                                      toast.success("Withdrawal rejected");
-                                      fetchRequests();
-                                    })
-                                    .catch((err) => toast.error(err));
-                                }
-                              }}
-                              disabled={isMutating}
-                              className="rounded-lg bg-rose-100 p-2 text-rose-700 transition hover:bg-rose-200 disabled:opacity-50"
-                              title="Reject"
-                            >
-                              <XCircle className="h-4 w-4" />
-                            </button>
-                          </>
-                        ) : null}
-
                       </div>
                     </td>
                   </tr>
@@ -711,10 +643,14 @@ export default function WithdrawalRequest() {
           </table>
           <div className="flex flex-col gap-3 border-t border-slate-200 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 sm:flex-row sm:items-center sm:justify-between">
             <label className="flex items-center gap-2 text-sm font-semibold normal-case text-slate-600">
-              <span className="text-xs uppercase tracking-wide text-slate-500">Rows per page</span>
+              <span className="text-xs uppercase tracking-wide text-slate-500">
+                Rows per page
+              </span>
               <select
                 value={pageSize}
-                onChange={(event) => handlePageSizeChange(Number(event.target.value))}
+                onChange={(event) =>
+                  handlePageSizeChange(Number(event.target.value))
+                }
                 className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
               >
                 {PAGE_SIZE_OPTIONS.map((option) => (
@@ -730,7 +666,8 @@ export default function WithdrawalRequest() {
               ) : (
                 <>
                   Showing {((page - 1) * pageSize + 1).toLocaleString()}–
-                  {Math.min(page * pageSize, total).toLocaleString()} of {total.toLocaleString()} request{total === 1 ? "" : "s"}
+                  {Math.min(page * pageSize, total).toLocaleString()} of{" "}
+                  {total.toLocaleString()} request{total === 1 ? "" : "s"}
                 </>
               )}
               <div className="flex items-center gap-2 text-xs font-semibold">
@@ -759,8 +696,10 @@ export default function WithdrawalRequest() {
         </div>
       )}
 
-      <WithdrawalDetailsModal request={selectedRequest} onClose={() => setSelectedRequest(null)} />
+      <WithdrawalDetailsModal
+        request={selectedRequest}
+        onClose={() => setSelectedRequest(null)}
+      />
     </div>
   );
 }
-

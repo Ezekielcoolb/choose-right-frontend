@@ -14,6 +14,7 @@ import {
   FolderKanban,
   ChevronDown,
   ChevronRight,
+  TrendingUp,
 } from "lucide-react";
 import { FaExchangeAlt, FaUserShield } from "react-icons/fa";
 
@@ -37,6 +38,16 @@ const primaryNav = [
     label: "Withdrawal Requests",
     to: "/admin/withdraw",
     icon: Briefcase,
+  },
+  {
+    label: "Backdate Requests",
+    to: "/admin/backdate-requests",
+    icon: CalendarDays,
+  },
+  {
+    label: "Contribution Updates",
+    to: "/admin/contribution-updates",
+    icon: TrendingUp,
   },
   {
     label: "Loans",

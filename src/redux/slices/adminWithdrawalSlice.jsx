@@ -3,22 +3,43 @@ import apiClient from "../../api/client";
 
 export const fetchAdminWithdrawalRequests = createAsyncThunk(
   "adminWithdrawals/fetch",
-  async (status = "pending", thunkAPI) => {
+  async (params = {}, thunkAPI) => {
     try {
-      const query = status ? `?status=${status}` : "";
+      const {
+        status = "pending",
+        csoId,
+        search,
+        page = 1,
+        limit = 20,
+        dateRange,
+        startDate,
+        endDate,
+        specificDate,
+        specificMonth,
+      } = params;
+
+      let query = `?status=${status}&page=${page}&limit=${limit}`;
+      if (csoId && csoId !== "all") query += `&csoId=${csoId}`;
+      if (search) query += `&search=${encodeURIComponent(search)}`;
+      if (dateRange) query += `&dateRange=${dateRange}`;
+      if (startDate) query += `&startDate=${startDate}`;
+      if (endDate) query += `&endDate=${endDate}`;
+      if (specificDate) query += `&specificDate=${specificDate}`;
+      if (specificMonth) query += `&specificMonth=${specificMonth}`;
+
       const response = await apiClient.get(`/admin/withdrawals${query}`);
-      return { status, items: response.data };
+      return { status, ...response.data };
     } catch (error) {
       return thunkAPI.rejectWithValue(error.response?.data?.message || error.message);
     }
   },
 );
 
-export const approveAdminWithdrawalRequest = createAsyncThunk(
-  "adminWithdrawals/approve",
-  async (requestId, thunkAPI) => {
+export const approveMultipleWithdrawals = createAsyncThunk(
+  "adminWithdrawals/approveMultiple",
+  async (requestIds, thunkAPI) => {
     try {
-      const response = await apiClient.put(`/admin/withdrawals/${requestId}/approve`);
+      const response = await apiClient.put("/admin/withdrawals/approve-multiple", { requestIds });
       return response.data;
     } catch (error) {
       return thunkAPI.rejectWithValue(error.response?.data?.message || error.message);
@@ -26,11 +47,14 @@ export const approveAdminWithdrawalRequest = createAsyncThunk(
   },
 );
 
-export const rejectAdminWithdrawalRequest = createAsyncThunk(
-  "adminWithdrawals/reject",
-  async ({ requestId, note }, thunkAPI) => {
+export const rejectMultipleWithdrawals = createAsyncThunk(
+  "adminWithdrawals/rejectMultiple",
+  async ({ requestIds, note }, thunkAPI) => {
     try {
-      const response = await apiClient.put(`/admin/withdrawals/${requestId}/reject`, { note });
+      const response = await apiClient.put("/admin/withdrawals/reject-multiple", {
+        requestIds,
+        note,
+      });
       return response.data;
     } catch (error) {
       return thunkAPI.rejectWithValue(error.response?.data?.message || error.message);
@@ -40,6 +64,10 @@ export const rejectAdminWithdrawalRequest = createAsyncThunk(
 
 const initialState = {
   items: [],
+  total: 0,
+  totalAmount: 0,
+  page: 1,
+  pages: 1,
   statusFilter: "pending",
   status: "idle",
   error: null,
@@ -53,6 +81,10 @@ const adminWithdrawalSlice = createSlice({
   reducers: {
     clearAdminWithdrawalState(state) {
       state.items = [];
+      state.total = 0;
+      state.totalAmount = 0;
+      state.page = 1;
+      state.pages = 1;
       state.status = "idle";
       state.error = null;
       state.mutationStatus = "idle";
@@ -68,40 +100,48 @@ const adminWithdrawalSlice = createSlice({
       .addCase(fetchAdminWithdrawalRequests.fulfilled, (state, action) => {
         state.status = "succeeded";
         state.statusFilter = action.payload.status;
-        state.items = action.payload.items;
+        state.items = action.payload.items || [];
+        state.total = action.payload.total || 0;
+        state.totalAmount = action.payload.totalAmount || 0;
+        state.page = action.payload.page || 1;
+        state.pages = action.payload.pages || 1;
       })
+
       .addCase(fetchAdminWithdrawalRequests.rejected, (state, action) => {
         state.status = "failed";
         state.error = action.payload || action.error.message;
       })
-      .addCase(approveAdminWithdrawalRequest.pending, (state) => {
+      .addCase(approveMultipleWithdrawals.pending, (state) => {
         state.mutationStatus = "loading";
         state.mutationError = null;
       })
-      .addCase(approveAdminWithdrawalRequest.fulfilled, (state, action) => {
+      .addCase(approveMultipleWithdrawals.fulfilled, (state, action) => {
         state.mutationStatus = "succeeded";
-        const { request } = action.payload;
-        state.items = state.items.filter((item) => item._id !== request._id);
+        const { processedRequests = [] } = action.payload;
+        state.items = state.items.filter((item) => !processedRequests.includes(item._id));
       })
-      .addCase(approveAdminWithdrawalRequest.rejected, (state, action) => {
+      .addCase(approveMultipleWithdrawals.rejected, (state, action) => {
         state.mutationStatus = "failed";
         state.mutationError = action.payload || action.error.message;
       })
-      .addCase(rejectAdminWithdrawalRequest.pending, (state) => {
+      .addCase(rejectMultipleWithdrawals.pending, (state) => {
         state.mutationStatus = "loading";
         state.mutationError = null;
       })
-      .addCase(rejectAdminWithdrawalRequest.fulfilled, (state, action) => {
+      .addCase(rejectMultipleWithdrawals.fulfilled, (state, action) => {
         state.mutationStatus = "succeeded";
-        const { request } = action.payload;
-        state.items = state.items.filter((item) => item._id !== request._id);
+        // Since we don't get the list of IDs back in reject, we'd need to handle it or just refetch
+        // But for consistency let's assume successful modification means they should be filtered out
+        // (This might need a refetch for absolute accuracy if some weren't modified)
+        state.status = "idle"; // Force refetch
       })
-      .addCase(rejectAdminWithdrawalRequest.rejected, (state, action) => {
+      .addCase(rejectMultipleWithdrawals.rejected, (state, action) => {
         state.mutationStatus = "failed";
         state.mutationError = action.payload || action.error.message;
       });
   },
 });
+
 
 export const { clearAdminWithdrawalState } = adminWithdrawalSlice.actions;
 export default adminWithdrawalSlice.reducer;

@@ -37,6 +37,7 @@ const tabConfig = [
   { key: "remittance", label: "Remittance" },
   { key: "dashboard", label: "Dashboard" },
   { key: "collections", label: "Collections" },
+  { key: "performance", label: "Performance" },
 ];
 
 const formatCurrency = (value) =>
@@ -346,6 +347,7 @@ export default function CsoDetailPage() {
   } = useSelector((state) => state.csos);
   const [activeTab, setActiveTab] = useState("details");
   const [dashboardMonth, setDashboardMonth] = useState("all");
+  const [performanceMonth, setPerformanceMonth] = useState(() => getMonthKey(new Date()));
   const [planModalCustomerId, setPlanModalCustomerId] = useState(null);
 
   const [planFilters, setPlanFilters] = useState({});
@@ -706,7 +708,7 @@ export default function CsoDetailPage() {
           <div>
             <h3 className="text-lg font-semibold text-slate-900">Daily collections</h3>
             <p className="text-sm text-slate-500">
-              Review payments recorded under this CSO for a specific date.
+              Review payments recorded under this CSO.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -1337,6 +1339,143 @@ export default function CsoDetailPage() {
     );
   };
 
+  const renderPerformanceTab = () => {
+    const uniqueMonths = getUniqueMonthsForEntries(entries);
+    
+    const isLoanPlan = (p) => {
+      const status = (p.loanStatus || "").toLowerCase();
+      return ["approved", "active", "completed"].includes(status) || p.isLoan;
+    };
+
+    const filteredEntries = entries.filter((entry) => {
+      const monthKey = getMonthKey(entry.recordedAt || entry.createdAt || entry.updatedAt);
+      const type = (entry.type || "").toLowerCase();
+      return monthKey === performanceMonth && PAYMENT_TYPES.has(type);
+    });
+
+    const planActivity = new Map();
+    filteredEntries.forEach((entry) => {
+      const planId = entry.planId?._id || entry.planId;
+      if (!planId) return;
+      const planIdStr = planId.toString();
+      
+      const amount = getEntryAmount(entry);
+      
+      if (!planActivity.has(planIdStr)) {
+        const plan = plansById.get(planIdStr);
+        planActivity.set(planIdStr, {
+          planName: plan?.planName || "Unknown Plan",
+          type: plan ? (isLoanPlan(plan) ? "Loan" : "Saving") : "Unknown",
+          totalDeposited: 0,
+        });
+      }
+      
+      const activity = planActivity.get(planIdStr);
+      activity.totalDeposited += amount;
+    });
+
+    const performanceData = Array.from(planActivity.values());
+    const overallTotal = performanceData.reduce((sum, item) => sum + item.totalDeposited, 0);
+    // Count unique plans that had payments in the selected month
+    const activePlanIds = new Set(
+      filteredEntries.map((entry) => {
+        const pId = entry.planId?._id || entry.planId;
+        return pId?.toString();
+      }).filter(Boolean)
+    );
+    const totalCount = activePlanIds.size;
+
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-slate-900">Performance monitoring</h3>
+            <p className="text-sm text-slate-500">
+              Track CSO productivity and monthly performance.
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <label className="text-sm font-medium text-slate-600" htmlFor="performance-month">
+              Select Month:
+            </label>
+            <select
+              id="performance-month"
+              value={performanceMonth}
+              onChange={(e) => setPerformanceMonth(e.target.value)}
+              className="rounded-full border border-slate-200 px-4 py-2 text-sm text-slate-700 shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+            >
+              {uniqueMonths.length > 0 ? (
+                uniqueMonths.map((m) => (
+                  <option key={m} value={m}>{formatMonthLabel(m)}</option>
+                ))
+              ) : (
+                <option value={getMonthKey(new Date())}>{formatMonthLabel(getMonthKey(new Date()))}</option>
+              )}
+            </select>
+          </div>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Monthly count</p>
+              <div className="rounded-xl bg-primary/10 p-2 text-primary">
+                <ClipboardList className="h-5 w-5" />
+              </div>
+            </div>
+            <p className="mt-2 text-3xl font-bold text-slate-900">{totalCount}</p>
+            <p className="mt-1 text-xs text-slate-500">Active plans with payments in {formatMonthLabel(performanceMonth)}</p>
+          </div>
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Total deposited</p>
+              <div className="rounded-xl bg-emerald-100 p-2 text-emerald-600">
+                <TrendingUp className="h-5 w-5" />
+              </div>
+            </div>
+            <p className="mt-2 text-3xl font-bold text-emerald-600">{formatCurrency(overallTotal)}</p>
+            <p className="mt-1 text-xs text-slate-500">Cumulative collections for the month</p>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto rounded-3xl border border-slate-200 bg-white shadow-sm">
+          {performanceData.length ? (
+            <table className="min-w-full divide-y divide-slate-200">
+              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                <tr>
+                  <th className="px-6 py-4 text-left font-semibold">Plan Name</th>
+                  <th className="px-6 py-4 text-left font-semibold">Plan Type</th>
+                  <th className="px-6 py-4 text-right font-semibold">Amount Deposited</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 bg-white text-sm text-slate-600">
+                {performanceData.map((item, idx) => (
+                  <tr key={idx} className="hover:bg-slate-50/70">
+                    <td className="px-6 py-4 font-medium text-slate-900">{item.planName}</td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                        item.type === 'Loan' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'
+                      }`}>
+                        {item.type}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-right font-semibold text-slate-900">
+                      {formatCurrency(item.totalDeposited)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div className="px-6 py-16 text-center text-sm text-slate-500">
+              No plan activity recorded for {formatMonthLabel(performanceMonth)}.
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
 
   const handleStatusToggle = () => {
     if (!cso) return;
@@ -1600,6 +1739,8 @@ export default function CsoDetailPage() {
           renderCollectionsTab()
         ) : activeTab === "dashboard" ? (
           renderDashboardTab()
+        ) : activeTab === "performance" ? (
+          renderPerformanceTab()
         ) : null}
       </div>
 

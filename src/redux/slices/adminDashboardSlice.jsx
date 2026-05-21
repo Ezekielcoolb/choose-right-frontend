@@ -3,9 +3,16 @@ import apiClient from "../../api/client";
 
 export const fetchDashboardOverview = createAsyncThunk(
   "adminDashboard/fetchOverview",
-  async (_, thunkAPI) => {
+  async (filters = {}, thunkAPI) => {
     try {
-      const response = await apiClient.get("/admin/panel/dashboard/overview");
+      const queryParams = new URLSearchParams();
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value) queryParams.append(key, value);
+      });
+      const queryString = queryParams.toString();
+      const url = `/admin/panel/dashboard/overview${queryString ? `?${queryString}` : ""}`;
+      
+      const response = await apiClient.get(url);
       return response.data;
     } catch (error) {
       return thunkAPI.rejectWithValue(error.response?.data?.message || error.message);
@@ -15,9 +22,16 @@ export const fetchDashboardOverview = createAsyncThunk(
 
 export const fetchDashboardInsights = createAsyncThunk(
   "adminDashboard/fetchInsights",
-  async (_, thunkAPI) => {
+  async (filters = {}, thunkAPI) => {
     try {
-      const response = await apiClient.get("/admin/panel/dashboard/insights");
+      const queryParams = new URLSearchParams();
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value) queryParams.append(key, value);
+      });
+      const queryString = queryParams.toString();
+      const url = `/admin/panel/dashboard/insights${queryString ? `?${queryString}` : ""}`;
+      
+      const response = await apiClient.get(url);
       return response.data;
     } catch (error) {
       return thunkAPI.rejectWithValue(error.response?.data?.message || error.message);
@@ -27,9 +41,16 @@ export const fetchDashboardInsights = createAsyncThunk(
 
 export const fetchDashboardRecent = createAsyncThunk(
   "adminDashboard/fetchRecent",
-  async (_, thunkAPI) => {
+  async (filters = {}, thunkAPI) => {
     try {
-      const response = await apiClient.get("/admin/panel/dashboard/recent");
+      const queryParams = new URLSearchParams();
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value) queryParams.append(key, value);
+      });
+      const queryString = queryParams.toString();
+      const url = `/admin/panel/dashboard/recent${queryString ? `?${queryString}` : ""}`;
+      
+      const response = await apiClient.get(url);
       return response.data;
     } catch (error) {
       return thunkAPI.rejectWithValue(error.response?.data?.message || error.message);

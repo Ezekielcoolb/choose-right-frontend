@@ -131,43 +131,51 @@ export default function MonthlyReportPage() {
   }, [loansStatus, dispatch]);
 
   const fetchedPlanIdsRef = useRef(new Set());
+  const fetchingIdsRef = useRef(new Set());
 
   useEffect(() => {
     const plans = [...(adminPlans || []), ...(activeLoans || [])];
     if (!plans.length) return;
 
     plans.forEach((plan) => {
-      const planId = plan?._id;
+      const planId = plan?._id?.toString();
       if (!planId) return;
-      if (fetchedPlanIdsRef.current.has(planId)) return;
+      if (fetchedPlanIdsRef.current.has(planId) || fetchingIdsRef.current.has(planId)) return;
 
-      fetchedPlanIdsRef.current.add(planId);
-      if (entriesByPlan?.[planId]?.items) {
+      const existing = entriesByPlan?.[planId];
+      if (existing?.items && (existing.pagination?.limit || 0) >= 1000) {
+        fetchedPlanIdsRef.current.add(planId);
         return;
       }
 
+      fetchingIdsRef.current.add(planId);
       dispatch(
         fetchAdminPlanEntries({
           customerId: plan.customerId?._id || plan.customerId,
           planId,
           page: 1,
-          limit: 500,
+          limit: 1000,
         }),
-      );
+      ).finally(() => {
+        fetchingIdsRef.current.delete(planId);
+        fetchedPlanIdsRef.current.add(planId);
+      });
     });
-  }, [adminPlans, activeLoans, entriesByPlan, dispatch]);
+  }, [adminPlans, activeLoans, dispatch]);
 
   const planMap = useMemo(() => {
     const map = new Map();
     (adminPlans || []).forEach((plan) => {
-      if (plan?._id) {
-        map.set(plan._id, plan);
+      const planId = plan?._id?.toString();
+      if (planId) {
+        map.set(planId, plan);
       }
     });
     (activeLoans || []).forEach((plan) => {
-      if (!plan?._id) return;
-      const existing = map.get(plan._id) || {};
-      map.set(plan._id, { ...existing, ...plan });
+      const planId = plan?._id?.toString();
+      if (!planId) return;
+      const existing = map.get(planId) || {};
+      map.set(planId, { ...existing, ...plan });
     });
     return map;
   }, [adminPlans, activeLoans]);
@@ -194,13 +202,18 @@ export default function MonthlyReportPage() {
     const monthMap = new Map();
 
     allPlans.forEach((plan) => {
-      const planId = plan?._id;
+      const planId = plan?._id?.toString();
       if (!planId) return;
       const entries = entriesByPlan?.[planId]?.items || [];
       const loanPlan = isLoanPlan(plan);
 
       entries.forEach((entry) => {
-        const monthKey = getMonthKey(entry.recordedAt || entry.createdAt);
+        const entryType = normalizeType(entry.type);
+        const entryDate = (WITHDRAWAL_TYPES.has(entryType) && entry.metadata?.processedAt) 
+          ? entry.metadata.processedAt 
+          : (entry.recordedAt || entry.createdAt);
+
+        const monthKey = getMonthKey(entryDate);
         if (!monthKey) return;
 
         const amount = Number(entry.amount || 0);
@@ -208,19 +221,15 @@ export default function MonthlyReportPage() {
           return;
         }
 
-        const entryType = normalizeType(entry.type);
         const bucket =
           monthMap.get(monthKey) || {
             deposits: 0,
-            withdrawals: 0,
             savingsFees: 0,
             loanFees: 0,
           };
 
         if (DEPOSIT_TYPES.has(entryType)) {
           bucket.deposits += amount;
-        } else if (WITHDRAWAL_TYPES.has(entryType)) {
-          bucket.withdrawals += amount;
         } else if (entryType.includes("fee")) {
           if (loanPlan) {
             bucket.loanFees += amount;
@@ -315,7 +324,6 @@ export default function MonthlyReportPage() {
         savingsCount: counts.savingsCount,
         loanCount: counts.loanCount,
         deposited: metrics.deposits,
-        withdrawals: metrics.withdrawals,
         adminFeeSavings: metrics.savingsFees,
         adminFeeLoan: metrics.loanFees,
         adminFeeTotal: metrics.savingsFees + metrics.loanFees,
@@ -329,7 +337,6 @@ export default function MonthlyReportPage() {
         acc.savingsCount += row.savingsCount;
         acc.loanCount += row.loanCount;
         acc.deposited += row.deposited;
-        acc.withdrawals += row.withdrawals;
         acc.adminFeeSavings += row.adminFeeSavings;
         acc.adminFeeLoan += row.adminFeeLoan;
         acc.adminFeeTotal += row.adminFeeTotal;
@@ -339,7 +346,6 @@ export default function MonthlyReportPage() {
         savingsCount: 0,
         loanCount: 0,
         deposited: 0,
-        withdrawals: 0,
         adminFeeSavings: 0,
         adminFeeLoan: 0,
         adminFeeTotal: 0,
@@ -456,7 +462,6 @@ export default function MonthlyReportPage() {
                   <th className="px-4 py-3 text-right font-semibold">Loan count</th>
                   <th className="px-4 py-3 text-right font-semibold">Amount deposited</th>
                   <th className="px-4 py-3 text-right font-semibold">Admin fee</th>
-                  <th className="px-4 py-3 text-right font-semibold">Withdrawals</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
@@ -478,9 +483,6 @@ export default function MonthlyReportPage() {
                         Savings {formatCurrency(row.adminFeeSavings)} • Loan {formatCurrency(row.adminFeeLoan)}
                       </div>
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-rose-600">
-                      {formatCurrency(row.withdrawals)}
-                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -491,7 +493,6 @@ export default function MonthlyReportPage() {
                   <th className="px-4 py-3 text-right font-semibold text-slate-900">{totals.loanCount.toLocaleString()}</th>
                   <th className="px-4 py-3 text-right font-semibold text-emerald-700">{formatCurrency(totals.deposited)}</th>
                   <th className="px-4 py-3 text-right font-semibold text-slate-900">{formatCurrency(totals.adminFeeTotal)}</th>
-                  <th className="px-4 py-3 text-right font-semibold text-rose-600">{formatCurrency(totals.withdrawals)}</th>
                 </tr>
               </tfoot>
             </table>

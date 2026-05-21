@@ -221,8 +221,8 @@ export const updateSavingsDailyContribution = createAsyncThunk(
   "savings/updateDailyContribution",
   async ({ planId, payload }, thunkAPI) => {
     try {
-      const response = await apiClient.patch(`/savings/${planId}/contribution`, payload);
-      return response.data;
+      const response = await apiClient.post("/contribution-updates/request", { planId, ...payload });
+      return { planId, request: response.data.request };
     } catch (error) {
       return thunkAPI.rejectWithValue(error.response?.data?.message || error.message);
     }
@@ -499,26 +499,12 @@ const savingsSlice = createSlice({
       })
       .addCase(updateSavingsDailyContribution.fulfilled, (state, action) => {
         state.mutationStatus = "succeeded";
-        const { plan: rawPlan, feeEntry } = action.payload || {};
-        const plan = normalizePlan(rawPlan);
-        if (plan?._id) {
-          state.plansById[plan._id] = plan;
-          if (plan.customerId && state.plansByCustomer[plan.customerId]) {
-            state.plansByCustomer[plan.customerId] = state.plansByCustomer[plan.customerId].map((item) =>
-              item._id === plan._id ? plan : item,
-            );
-          }
-          if (state.selectedPlan?._id === plan._id) {
-            state.selectedPlan = plan;
-          }
-          if (feeEntry && state.entriesByPlan[plan._id]) {
-            const existing = state.entriesByPlan[plan._id];
-            const items = Array.isArray(existing.items) ? existing.items : [];
-            state.entriesByPlan[plan._id] = {
-              ...existing,
-              items: [feeEntry, ...items],
-            };
-          }
+        const { planId, request } = action.payload || {};
+        if (state.plansById[planId]) {
+           state.plansById[planId] = { ...state.plansById[planId], latestContributionUpdateRequest: request };
+        }
+        if (state.selectedPlan?._id === planId) {
+           state.selectedPlan = { ...state.selectedPlan, latestContributionUpdateRequest: request };
         }
         state.lastActionId = nanoid();
       })

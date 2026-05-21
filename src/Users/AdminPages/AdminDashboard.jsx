@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import {
   Activity,
@@ -11,6 +11,8 @@ import {
   Sparkles,
   Target,
   Users,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 
 import {
@@ -148,6 +150,11 @@ export default function AdminDashboardPage() {
   const dispatch = useDispatch();
 
   const dashboardState = useSelector((state) => state.adminDashboard) || {};
+  const [showSensitive, setShowSensitive] = useState(true);
+  const [dateRange, setDateRange] = useState("all");
+  const [specificDate, setSpecificDate] = useState("");
+  const [specificMonth, setSpecificMonth] = useState("");
+
   const defaultAsyncState = useMemo(
     () => ({ data: null, status: "idle", error: null }),
     [],
@@ -158,17 +165,14 @@ export default function AdminDashboardPage() {
     recent = defaultAsyncState,
   } = dashboardState;
 
+  const filters = useMemo(() => ({ dateRange, specificDate, specificMonth }), [dateRange, specificDate, specificMonth]);
+
   useEffect(() => {
-    if (overview.status === "idle") {
-      dispatch(fetchDashboardOverview());
-    }
-    if (insights.status === "idle") {
-      dispatch(fetchDashboardInsights());
-    }
-    if (recent.status === "idle") {
-      dispatch(fetchDashboardRecent());
-    }
-  }, [dispatch, overview.status, insights.status, recent.status]);
+    // Only fetch if we are "idle" OR if the filters change
+    dispatch(fetchDashboardOverview(filters));
+    dispatch(fetchDashboardInsights(filters));
+    dispatch(fetchDashboardRecent(filters));
+  }, [dispatch, filters]);
 
   const emptyTotals = useMemo(
     () => ({
@@ -177,6 +181,8 @@ export default function AdminDashboardPage() {
       savingsFees: 0,
       availableBalance: 0,
       loanOutstanding: 0,
+      overdueLoanOutstanding: 0,
+      onTargetLoanOutstanding: 0,
       loanDisbursed: 0,
       loanRepaid: 0,
       loanFees: 0,
@@ -228,9 +234,52 @@ export default function AdminDashboardPage() {
       <header className="overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 p-8 text-white shadow-lg">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-4">
-            <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-1 text-xs font-semibold uppercase tracking-widest text-emerald-200">
-              <Sparkles className="h-4 w-4" /> Executive overview
-            </span>
+            <div className="flex items-center justify-between">
+              <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-1 text-xs font-semibold uppercase tracking-widest text-emerald-200">
+                <Sparkles className="h-4 w-4" /> Executive overview
+              </span>
+              
+              <div className="flex items-center gap-2">
+                <select
+                  value={dateRange}
+                  onChange={(e) => setDateRange(e.target.value)}
+                  className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-white outline-none transition focus:bg-white/20"
+                >
+                  <option value="all" className="text-slate-900">All Time</option>
+                  <option value="today" className="text-slate-900">Today</option>
+                  <option value="yesterday" className="text-slate-900">Yesterday</option>
+                  <option value="thisWeek" className="text-slate-900">This Week</option>
+                  <option value="thisMonth" className="text-slate-900">This Month</option>
+                  <option value="specificDate" className="text-slate-900">Specific Date</option>
+                  <option value="specificMonth" className="text-slate-900">Specific Month</option>
+                </select>
+                {dateRange === "specificDate" && (
+                  <input
+                    type="date"
+                    value={specificDate}
+                    onChange={(e) => setSpecificDate(e.target.value)}
+                    className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-white outline-none transition focus:bg-white/20 [&::-webkit-calendar-picker-indicator]:invert"
+                  />
+                )}
+                {dateRange === "specificMonth" && (
+                  <input
+                    type="month"
+                    value={specificMonth}
+                    onChange={(e) => setSpecificMonth(e.target.value)}
+                    className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-white outline-none transition focus:bg-white/20 [&::-webkit-calendar-picker-indicator]:invert"
+                  />
+                )}
+
+                <button
+                  onClick={() => setShowSensitive(!showSensitive)}
+                  className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/20"
+                  title={showSensitive ? "Hide sensitive values" : "Show sensitive values"}
+                >
+                  {showSensitive ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                  {showSensitive ? "Hide" : "Show"}
+                </button>
+              </div>
+            </div>
             <h1 className="text-4xl font-semibold leading-tight">Welcome back!</h1>
             <p className="max-w-2xl text-sm text-slate-200">
               Monitor savings momentum, loan exposure, network coverage, and operational health in real time. 
@@ -240,7 +289,8 @@ export default function AdminDashboardPage() {
                 <Activity className="h-4 w-4 text-emerald-300" /> {monthlyTrend.length} month trendline
               </div>
               <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 font-semibold">
-                <Target className="h-4 w-4 text-sky-300" /> {formatCurrency(totals.availableBalance)} liquidity
+                <Target className="h-4 w-4 text-sky-300" /> 
+                <span className={!showSensitive ? "blur-sm" : ""}>{formatCurrency(totals.availableBalance)}</span> liquidity
               </div>
             </div>
           </div>
@@ -249,15 +299,15 @@ export default function AdminDashboardPage() {
             <div className="mt-4 space-y-3">
               <div className="flex items-center justify-between gap-3">
                 <span className="text-slate-200">Net inflow YTD</span>
-                <span className="font-semibold text-white">{formatCurrency(totals.savingsDeposited - totals.savingsWithdrawn)}</span>
+                <span className={`font-semibold text-white ${!showSensitive ? "blur-sm" : ""}`}>{formatCurrency(totals.savingsDeposited - totals.savingsWithdrawn)}</span>
               </div>
               <div className="flex items-center justify-between gap-3">
                 <span className="text-slate-200">Loan portfolio</span>
-                <span className="font-semibold text-white">{formatCurrency(totals.loanOutstanding)}</span>
+                <span className={`font-semibold text-white ${!showSensitive ? "blur-sm" : ""}`}>{formatCurrency(totals.loanOutstanding)}</span>
               </div>
               <div className="flex items-center justify-between gap-3">
                 <span className="text-slate-200">Collections captured</span>
-                <span className="font-semibold text-emerald-200">{formatCurrency(totals.savingsDeposited + totals.loanRepaid)}</span>
+                <span className={`font-semibold text-emerald-200 ${!showSensitive ? "blur-sm" : ""}`}>{formatCurrency(totals.savingsDeposited + totals.loanRepaid)}</span>
               </div>
             </div>
             <button
@@ -285,7 +335,7 @@ export default function AdminDashboardPage() {
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Total deposits</p>
-                  <p className="mt-2 text-2xl font-semibold text-slate-900">{formatCurrency(totals.totalDeposit)}</p>
+                  <p className={`mt-2 text-2xl font-semibold text-slate-900 ${!showSensitive ? "blur-sm" : ""}`}>{formatCurrency(totals.totalDeposit)}</p>
                 </div>
                 <PiggyBank className="h-8 w-8 text-primary" />
               </div>
@@ -294,16 +344,28 @@ export default function AdminDashboardPage() {
             </article>
 
 
-            <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Loan exposure</p>
-                  <p className="mt-2 text-2xl font-semibold text-slate-900">{formatCurrency(totals.loanOutstanding)}</p>
+            <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm flex flex-col justify-between">
+              <div>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Loan exposure</p>
+                    <p className={`mt-2 text-2xl font-semibold text-slate-900 ${!showSensitive ? "blur-sm" : ""}`}>{formatCurrency(totals.loanOutstanding)}</p>
+                  </div>
+                  <Banknote className="h-8 w-8 text-amber-500" />
                 </div>
-                <Banknote className="h-8 w-8 text-amber-500" />
+                <p className="mt-3 text-xs text-slate-500">{totals.loanCount.toLocaleString()} active loans across the network</p>
               </div>
-              <p className="mt-3 text-xs text-slate-500">{totals.loanCount.toLocaleString()} active loans across the network</p>
-              <ProgressMeter label="Repaid" total={totals.loanDisbursed} value={totals.loanRepaid} tone="bg-amber-500" />
+              
+              <div className="mt-4 space-y-2 border-t border-slate-100 pt-3">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-500">On target</span>
+                  <span className={`font-semibold text-slate-700 ${!showSensitive ? "blur-sm" : ""}`}>{formatCurrency(totals.onTargetLoanOutstanding)}</span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-rose-500 font-medium">Overdue (&gt;32 days)</span>
+                  <span className={`font-semibold text-rose-600 ${!showSensitive ? "blur-sm" : ""}`}>{formatCurrency(totals.overdueLoanOutstanding)}</span>
+                </div>
+              </div>
             </article>
 
             <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -322,7 +384,7 @@ export default function AdminDashboardPage() {
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Total maintenance</p>
-                  <p className="mt-2 text-2xl font-semibold text-slate-900">{formatCurrency(totals.totalMaintenance)}</p>
+                  <p className={`mt-2 text-2xl font-semibold text-slate-900 ${!showSensitive ? "blur-sm" : ""}`}>{formatCurrency(totals.totalMaintenance)}</p>
                 </div>
                 <PieChart className="h-8 w-8 text-rose-500" />
               </div>
@@ -344,19 +406,19 @@ export default function AdminDashboardPage() {
               <dl className="mt-6 grid gap-4 sm:grid-cols-2">
                 <div className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
                   <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Total Amount Saved</dt>
-                  <dd className="mt-2 text-lg font-semibold text-slate-900">{formatCurrency(totals.savingsDeposited)}</dd>
+                  <dd className={`mt-2 text-lg font-semibold text-slate-900 ${!showSensitive ? "blur-sm" : ""}`}>{formatCurrency(totals.savingsDeposited)}</dd>
                 </div>
                 <div className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
                   <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Total Maintenance on Saving</dt>
-                  <dd className="mt-2 text-lg font-semibold text-slate-900">{formatCurrency(totals.savingsFees)}</dd>
+                  <dd className={`mt-2 text-lg font-semibold text-slate-900 ${!showSensitive ? "blur-sm" : ""}`}>{formatCurrency(totals.savingsFees)}</dd>
                 </div>
                 <div className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
                   <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Total Withdrawal</dt>
-                  <dd className="mt-2 text-lg font-semibold text-slate-900">{formatCurrency(totals.savingsWithdrawn)}</dd>
+                  <dd className={`mt-2 text-lg font-semibold text-slate-900 ${!showSensitive ? "blur-sm" : ""}`}>{formatCurrency(totals.savingsWithdrawn)}</dd>
                 </div>
                 <div className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
                   <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Available Balance</dt>
-                  <dd className="mt-2 text-lg font-semibold text-emerald-700">{formatCurrency(totals.availableBalance)}</dd>
+                  <dd className={`mt-2 text-lg font-semibold text-emerald-700 ${!showSensitive ? "blur-sm" : ""}`}>{formatCurrency(totals.availableBalance)}</dd>
                 </div>
               </dl>
             </article>
@@ -372,20 +434,20 @@ export default function AdminDashboardPage() {
               <dl className="mt-6 grid gap-4 sm:grid-cols-2">
                 <div className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
                   <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Total Loan</dt>
-                  <dd className="mt-2 text-lg font-semibold text-slate-900">{formatCurrency(totals.loanDisbursed)}</dd>
+                  <dd className={`mt-2 text-lg font-semibold text-slate-900 ${!showSensitive ? "blur-sm" : ""}`}>{formatCurrency(totals.loanDisbursed)}</dd>
                 </div>
                 <div className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
                   <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Total Paid Back</dt>
-                  <dd className="mt-2 text-lg font-semibold text-slate-900">{formatCurrency(totals.loanRepaid)}</dd>
+                  <dd className={`mt-2 text-lg font-semibold text-slate-900 ${!showSensitive ? "blur-sm" : ""}`}>{formatCurrency(totals.loanRepaid)}</dd>
                 </div>
                 <div className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
                   <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Loan Maintenance Fee</dt>
-                  <dd className="mt-2 text-lg font-semibold text-slate-900">{formatCurrency(totals.loanFees)}</dd>
+                  <dd className={`mt-2 text-lg font-semibold text-slate-900 ${!showSensitive ? "blur-sm" : ""}`}>{formatCurrency(totals.loanFees)}</dd>
                 </div>
 
                 <div className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
                   <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Loan Balance</dt>
-                  <dd className="mt-2 text-lg font-semibold text-amber-700">{formatCurrency(totals.loanOutstanding)}</dd>
+                  <dd className={`mt-2 text-lg font-semibold text-amber-700 ${!showSensitive ? "blur-sm" : ""}`}>{formatCurrency(totals.loanOutstanding)}</dd>
                 </div>
               </dl>
             </article>
@@ -424,7 +486,7 @@ export default function AdminDashboardPage() {
                 <div className="rounded-2xl bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent p-4">
                   <div className="flex items-center justify-between text-sm font-semibold text-slate-900">
                     <span>Inflow captured</span>
-                    <span>{formatCurrency(flowTotals.inflow)}</span>
+                    <span className={!showSensitive ? "blur-sm" : ""}>{formatCurrency(flowTotals.inflow)}</span>
                   </div>
                   <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-emerald-100">
                     <div className="h-full rounded-full bg-emerald-500" style={{ width: `${flowTotals.ratioInflow}%` }} />
@@ -433,7 +495,7 @@ export default function AdminDashboardPage() {
                 <div className="rounded-2xl bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent p-4">
                   <div className="flex items-center justify-between text-sm font-semibold text-slate-900">
                     <span>Payout obligations</span>
-                    <span>{formatCurrency(flowTotals.outflow)}</span>
+                    <span className={!showSensitive ? "blur-sm" : ""}>{formatCurrency(flowTotals.outflow)}</span>
                   </div>
                   <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-amber-100">
                     <div className="h-full rounded-full bg-amber-500" style={{ width: `${flowTotals.ratioOutflow}%` }} />
@@ -442,7 +504,7 @@ export default function AdminDashboardPage() {
                 <div className="rounded-2xl bg-gradient-to-r from-rose-500/10 via-rose-500/5 to-transparent p-4">
                   <div className="flex items-center justify-between text-sm font-semibold text-slate-900">
                     <span>Fees retained</span>
-                    <span>{formatCurrency(flowTotals.fees)}</span>
+                    <span className={!showSensitive ? "blur-sm" : ""}>{formatCurrency(flowTotals.fees)}</span>
                   </div>
                   <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-rose-100">
                     <div className="h-full rounded-full bg-rose-500" style={{ width: `${flowTotals.ratioFees}%` }} />

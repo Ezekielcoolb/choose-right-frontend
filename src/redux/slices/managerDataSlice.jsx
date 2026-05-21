@@ -119,6 +119,30 @@ export const fetchManagerRemittances = createAsyncThunk(
   },
 );
 
+export const fetchManagerWithdrawals = createAsyncThunk(
+  "managerData/withdrawals",
+  async (params = {}, thunkAPI) => {
+    try {
+      const queryParams = new URLSearchParams();
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== "") {
+          queryParams.append(key, value);
+        }
+      });
+      const queryString = queryParams.toString();
+      const endpoint = queryString
+        ? `/manager/withdrawals?${queryString}`
+        : "/manager/withdrawals";
+      const response = await apiClient.get(endpoint);
+      return response.data;
+    } catch (error) {
+      return thunkAPI.rejectWithValue(
+        error.response?.data?.message || error.message,
+      );
+    }
+  },
+);
+
 export const resolveManagerRemittance = createAsyncThunk(
   "managerData/resolveRemittance",
   async ({ csoId, remittanceId, resolution, issueResolution }, thunkAPI) => {
@@ -184,6 +208,7 @@ const initialState = {
   loans: buildAsyncState(),
   transactions: buildAsyncState(),
   remittances: buildAsyncState(),
+  withdrawals: buildAsyncState(),
   csoDetail: {
     ...buildAsyncState(),
     customers: [],
@@ -209,6 +234,7 @@ const managerDataSlice = createSlice({
       state.loans = buildAsyncState();
       state.transactions = buildAsyncState();
       state.remittances = buildAsyncState();
+      state.withdrawals = buildAsyncState();
       state.csoDetail = {
         ...buildAsyncState(),
         customers: [],
@@ -377,6 +403,18 @@ const managerDataSlice = createSlice({
             r._id === item._id ? { ...r, ...item } : r,
           );
         }
+      })
+      .addCase(fetchManagerWithdrawals.pending, (state) => {
+        state.withdrawals.status = "loading";
+        state.withdrawals.error = null;
+      })
+      .addCase(fetchManagerWithdrawals.fulfilled, (state, action) => {
+        state.withdrawals.status = "succeeded";
+        state.withdrawals.data = action.payload;
+      })
+      .addCase(fetchManagerWithdrawals.rejected, (state, action) => {
+        state.withdrawals.status = "failed";
+        state.withdrawals.error = action.payload || action.error?.message;
       });
   },
 });

@@ -3,9 +3,38 @@ import apiClient from "../../api/client";
 
 export const fetchPendingLoans = createAsyncThunk(
   "adminLoans/fetchPending",
-  async (_, thunkAPI) => {
+  async (params = {}, thunkAPI) => {
     try {
-      const response = await apiClient.get("/admin/loans/pending");
+      const { csoId, search, page = 1, limit = 20 } = params;
+      let query = `?page=${page}&limit=${limit}`;
+      if (csoId && csoId !== "all") query += `&csoId=${csoId}`;
+      if (search) query += `&search=${encodeURIComponent(search)}`;
+
+      const response = await apiClient.get(`/admin/loans/pending${query}`);
+      return response.data;
+    } catch (error) {
+      return thunkAPI.rejectWithValue(error.response?.data?.message || error.message);
+    }
+  }
+);
+
+export const approveMultipleLoans = createAsyncThunk(
+  "adminLoans/approveMultiple",
+  async (planIds, thunkAPI) => {
+    try {
+      const response = await apiClient.put("/admin/loans/approve-multiple", { planIds });
+      return response.data;
+    } catch (error) {
+      return thunkAPI.rejectWithValue(error.response?.data?.message || error.message);
+    }
+  }
+);
+
+export const rejectMultipleLoans = createAsyncThunk(
+  "adminLoans/rejectMultiple",
+  async ({ planIds, note }, thunkAPI) => {
+    try {
+      const response = await apiClient.put("/admin/loans/reject-multiple", { planIds, note });
       return response.data;
     } catch (error) {
       return thunkAPI.rejectWithValue(error.response?.data?.message || error.message);
@@ -52,6 +81,9 @@ export const rejectAdminLoan = createAsyncThunk(
 const initialState = {
   pendingLoans: [],
   activeLoans: [],
+  total: 0,
+  page: 1,
+  pages: 1,
   status: "idle",
   error: null,
   mutationStatus: "idle",
@@ -78,25 +110,10 @@ const adminLoanSlice = createSlice({
       })
       .addCase(fetchPendingLoans.fulfilled, (state, action) => {
         state.status = "succeeded";
-        state.pendingLoans = (action.payload || []).filter((plan) => {
-          const rawStatus =
-            plan?.loanStatus ||
-            plan?.loanDetails?.status ||
-            plan?.loanRequest?.status;
-
-          const normalizedStatus = rawStatus ? rawStatus.toString().toLowerCase() : "";
-
-          const amount = Number(
-            plan?.loanDetails?.amount ??
-              plan?.loanDetails?.requestedAmount ??
-              plan?.loanRequest?.amount ??
-              plan?.loanRequest?.requestedAmount ??
-              plan?.lastLoanRequestAmount ??
-              0,
-          );
-
-          return normalizedStatus === "pending" && amount > 0;
-        });
+        state.pendingLoans = action.payload.items || [];
+        state.total = action.payload.total || 0;
+        state.page = action.payload.page || 1;
+        state.pages = action.payload.pages || 1;
       })
       .addCase(fetchPendingLoans.rejected, (state, action) => {
         state.status = "failed";
@@ -115,14 +132,36 @@ const adminLoanSlice = createSlice({
         state.status = "failed";
         state.error = action.payload;
       })
-      // Approve
+      // Bulk Actions
+      .addCase(approveMultipleLoans.pending, (state) => {
+        state.mutationStatus = "loading";
+        state.mutationError = null;
+      })
+      .addCase(approveMultipleLoans.fulfilled, (state) => {
+        state.mutationStatus = "succeeded";
+      })
+      .addCase(approveMultipleLoans.rejected, (state, action) => {
+        state.mutationStatus = "failed";
+        state.mutationError = action.payload;
+      })
+      .addCase(rejectMultipleLoans.pending, (state) => {
+        state.mutationStatus = "loading";
+        state.mutationError = null;
+      })
+      .addCase(rejectMultipleLoans.fulfilled, (state) => {
+        state.mutationStatus = "succeeded";
+      })
+      .addCase(rejectMultipleLoans.rejected, (state, action) => {
+        state.mutationStatus = "failed";
+        state.mutationError = action.payload;
+      })
+      // Single Actions
       .addCase(approveAdminLoan.pending, (state) => {
         state.mutationStatus = "loading";
         state.mutationError = null;
       })
       .addCase(approveAdminLoan.fulfilled, (state, action) => {
         state.mutationStatus = "succeeded";
-        // Remove from pending, add to active (if we want to optimistic update, or just refetch)
         const approvedPlan = action.payload.plan;
         state.pendingLoans = state.pendingLoans.filter(p => p._id !== approvedPlan._id);
         state.activeLoans.unshift(approvedPlan);
@@ -131,7 +170,6 @@ const adminLoanSlice = createSlice({
         state.mutationStatus = "failed";
         state.mutationError = action.payload;
       })
-      // Reject
       .addCase(rejectAdminLoan.pending, (state) => {
         state.mutationStatus = "loading";
         state.mutationError = null;
@@ -140,7 +178,6 @@ const adminLoanSlice = createSlice({
         state.mutationStatus = "succeeded";
         const rejectedPlan = action.payload.plan;
         state.pendingLoans = state.pendingLoans.filter(p => p._id !== rejectedPlan._id);
-        // Maybe move to rejected list if we had one?
       })
       .addCase(rejectAdminLoan.rejected, (state, action) => {
         state.mutationStatus = "failed";
@@ -149,5 +186,7 @@ const adminLoanSlice = createSlice({
   },
 });
 
+
 export const { clearAdminLoanState } = adminLoanSlice.actions;
 export default adminLoanSlice.reducer;
+

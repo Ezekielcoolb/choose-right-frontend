@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { Loader2, Search, ArrowUpRight } from "lucide-react";
+import { Loader2, Search, ArrowUpRight, Eye, EyeOff } from "lucide-react";
 import { fetchAdminSavingsPlans } from "../../redux/slices/savingsSlice";
 import { fetchCsos } from "../../redux/slices/csoSlice";
 
@@ -21,6 +21,7 @@ export default function AdminSavingsPage() {
   } = useSelector((state) => state.savings);
   const { items: csos, status: csosStatus } = useSelector((state) => state.csos);
 
+  const [showSensitive, setShowSensitive] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [csoFilter, setCsoFilter] = useState("all");
@@ -165,35 +166,45 @@ export default function AdminSavingsPage() {
 
   return (
     <div className="space-y-6">
-      <header className="space-y-3">
-        <h1 className="text-3xl font-semibold text-slate-900">Savings overview</h1>
-        <p className="text-sm text-slate-500">
-          Monitor all savings plans across CSOs, track fees, and review available balances from a single dashboard.
-        </p>
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-1.5">
+          <h1 className="text-3xl font-semibold text-slate-900">Savings overview</h1>
+          <p className="text-sm text-slate-500">
+            Monitor all savings plans across CSOs, track fees, and review available balances from a single dashboard.
+          </p>
+        </div>
+        <button
+          onClick={() => setShowSensitive(!showSensitive)}
+          className="inline-flex items-center gap-2 self-start rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+          title={showSensitive ? "Hide sensitive values" : "Show sensitive values"}
+        >
+          {showSensitive ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          {showSensitive ? "Hide Values" : "Show Values"}
+        </button>
       </header>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Total deposited</p>
-          <p className="mt-2 text-2xl font-semibold text-slate-900">{formatCurrency(summary.totalDeposited)}</p>
+          <p className={`mt-2 text-2xl font-semibold text-slate-900 ${!showSensitive ? "blur-sm" : ""}`}>{formatCurrency(summary.totalDeposited)}</p>
           <p className="text-xs text-slate-500">Aggregate savings volume across all plans</p>
         </article>
 
         <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Maintenance fees</p>
-          <p className="mt-2 text-2xl font-semibold text-slate-900">{formatCurrency(summary.totalMaintenanceFees)}</p>
+          <p className={`mt-2 text-2xl font-semibold text-slate-900 ${!showSensitive ? "blur-sm" : ""}`}>{formatCurrency(summary.totalMaintenanceFees)}</p>
           <p className="text-xs text-slate-500">Total maintenance fees charged on all plans</p>
         </article>
 
         <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Withdrawn</p>
-          <p className="mt-2 text-2xl font-semibold text-slate-900">{formatCurrency(summary.totalWithdrawn)}</p>
+          <p className={`mt-2 text-2xl font-semibold text-slate-900 ${!showSensitive ? "blur-sm" : ""}`}>{formatCurrency(summary.totalWithdrawn)}</p>
           <p className="text-xs text-slate-500">Amount customers have already collected</p>
         </article>
 
         <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Available balance</p>
-          <p className="mt-2 text-2xl font-semibold text-slate-900">{formatCurrency(summary.availableBalance)}</p>
+          <p className={`mt-2 text-2xl font-semibold text-slate-900 ${!showSensitive ? "blur-sm" : ""}`}>{formatCurrency(summary.availableBalance)}</p>
           <p className="text-xs text-slate-500">Current balance available across all savers</p>
         </article>
       </section>

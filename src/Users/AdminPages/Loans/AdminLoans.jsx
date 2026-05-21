@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchActiveLoans } from "../../../redux/slices/adminLoanSlice";
-import { Loader2, Eye, Search } from "lucide-react";
+import { Loader2, Eye, Search, EyeOff } from "lucide-react";
 
 const formatCurrency = (value) =>
   new Intl.NumberFormat("en-NG", {
@@ -86,6 +86,7 @@ export default function AdminLoans() {
   const dispatch = useDispatch();
   const { activeLoans, status } = useSelector((state) => state.adminLoans);
 
+  const [showSensitive, setShowSensitive] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [csoFilter, setCsoFilter] = useState("all");
@@ -114,6 +115,17 @@ export default function AdminLoans() {
         .join(" ")
         .toLowerCase();
 
+      const startDate = plan?.loanDetails?.startDate || plan?.loanDetails?.approvalDate || plan?.createdAt;
+      let isOverdue = false;
+      if (startDate && stats.balance > 0) {
+        const start = new Date(startDate);
+        const diffTime = Date.now() - start.getTime();
+        const diffDays = diffTime / (1000 * 60 * 60 * 24);
+        if (diffDays > 32) {
+          isOverdue = true;
+        }
+      }
+
       return {
         ...plan,
         stats,
@@ -122,6 +134,7 @@ export default function AdminLoans() {
         csoName,
         csoKey,
         searchIndex,
+        isOverdue,
       };
     });
   }, [activeLoans]);
@@ -130,7 +143,14 @@ export default function AdminLoans() {
     const term = search.trim().toLowerCase();
     return enrichedLoans.filter((plan) => {
       const matchesSearch = !term || plan.searchIndex.includes(term);
-      const matchesStatus = statusFilter === "all" || plan.statusText === statusFilter.toLowerCase();
+      const matchesStatus =
+        statusFilter === "all"
+          ? true
+          : statusFilter === "overdue"
+            ? plan.isOverdue
+          : statusFilter === "ontrack"
+            ? !plan.isOverdue && (plan.statusText !== "completed" || plan.stats.balance > 0)
+            : plan.statusText === statusFilter.toLowerCase();
       const matchesCso = csoFilter === "all" || plan.csoKey === csoFilter;
       return matchesSearch && matchesStatus && matchesCso;
     });
@@ -179,41 +199,51 @@ export default function AdminLoans() {
   return (
     <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-slate-900">All Loans</h1>
+        <div className="space-y-1">
+          <h1 className="text-2xl font-bold text-slate-900">All Loans</h1>
+          <button
+            onClick={() => dispatch(fetchActiveLoans())}
+            className="text-sm font-semibold text-primary hover:underline"
+          >
+            Refresh
+          </button>
+        </div>
         <button
-          onClick={() => dispatch(fetchActiveLoans())}
-          className="text-sm font-semibold text-primary hover:underline"
+          onClick={() => setShowSensitive(!showSensitive)}
+          className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+          title={showSensitive ? "Hide sensitive values" : "Show sensitive values"}
         >
-          Refresh
+          {showSensitive ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          {showSensitive ? "Hide Values" : "Show Values"}
         </button>
       </div>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Total loans</p>
-          <p className="mt-2 text-2xl font-semibold text-slate-900">{formatCurrency(summary.totalAmount)}</p>
+          <p className={`mt-2 text-2xl font-semibold text-slate-900 ${!showSensitive ? "blur-sm" : ""}`}>{formatCurrency(summary.totalAmount)}</p>
           <p className="text-xs text-slate-500">Sum of all loans currently tracked</p>
         </article>
         <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Total deposited</p>
-          <p className="mt-2 text-2xl font-semibold text-slate-900">{formatCurrency(summary.totalDeposited)}</p>
+          <p className={`mt-2 text-2xl font-semibold text-slate-900 ${!showSensitive ? "blur-sm" : ""}`}>{formatCurrency(summary.totalDeposited)}</p>
           <p className="text-xs text-slate-500">Combined deposits collected across plans</p>
         </article>
         <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Total fees</p>
-          <p className="mt-2 text-2xl font-semibold text-slate-900">
+          <p className={`mt-2 text-2xl font-semibold text-slate-900 ${!showSensitive ? "blur-sm" : ""}`}>
             {formatCurrency(summary.totalMaintenance + summary.totalLoanFees)}
           </p>
           <p className="text-xs text-slate-500">Combined Maintenance & Loan fees</p>
         </article>
         <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Total paid</p>
-          <p className="mt-2 text-2xl font-semibold text-slate-900">{formatCurrency(summary.totalPaid)}</p>
+          <p className={`mt-2 text-2xl font-semibold text-slate-900 ${!showSensitive ? "blur-sm" : ""}`}>{formatCurrency(summary.totalPaid)}</p>
           <p className="text-xs text-slate-500">Repayments received across all loans</p>
         </article>
         <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Outstanding balance</p>
-          <p className="mt-2 text-2xl font-semibold text-slate-900">{formatCurrency(summary.totalBalance)}</p>
+          <p className={`mt-2 text-2xl font-semibold text-slate-900 ${!showSensitive ? "blur-sm" : ""}`}>{formatCurrency(summary.totalBalance)}</p>
           <p className="text-xs text-slate-500">Amount still owed by borrowers</p>
         </article>
       </section>
@@ -260,6 +290,8 @@ export default function AdminLoans() {
                 className="rounded-full border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
               >
                 <option value="all">All</option>
+                <option value="overdue">Overdue (32+ Days)</option>
+                <option value="ontrack">On Track (Within 32 Days)</option>
                 <option value="approved">Approved</option>
                 <option value="active">Active</option>
                 <option value="completed">Completed</option>
@@ -330,6 +362,11 @@ export default function AdminLoans() {
                         >
                           {toTitleCase(plan.statusText)}
                         </span>
+                        {plan.isOverdue && (
+                          <span className="ml-2 inline-flex items-center rounded-full bg-rose-100 px-2 py-1 text-[10px] font-bold uppercase text-rose-700">
+                            Overdue
+                          </span>
+                        )}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-slate-900">
                         {formatCurrency(plan.stats.amount)}

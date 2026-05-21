@@ -463,7 +463,7 @@ export default function CsoPage() {
     if (pending) {
       return (
         <tr>
-          <td colSpan={6} className="py-16 text-center text-sm text-slate-500">
+          <td colSpan={7} className="py-16 text-center text-sm text-slate-500">
             <Loader2 className="mx-auto mb-3 h-6 w-6 animate-spin text-primary" />
             Loading CSOs…
           </td>
@@ -474,7 +474,7 @@ export default function CsoPage() {
     if (error) {
       return (
         <tr>
-          <td colSpan={6} className="py-16 text-center text-sm text-red-500">
+          <td colSpan={7} className="py-16 text-center text-sm text-red-500">
             {error}
           </td>
         </tr>
@@ -484,7 +484,7 @@ export default function CsoPage() {
     if (!items.length) {
       return (
         <tr>
-          <td colSpan={6} className="py-16 text-center text-sm text-slate-500">
+          <td colSpan={7} className="py-16 text-center text-sm text-slate-500">
             No CSOs yet. Add the first field officer to get started.
           </td>
         </tr>
@@ -513,6 +513,9 @@ export default function CsoPage() {
             <MapPin className="h-3.5 w-3.5 text-slate-400" />
             {cso.branchName || "—"}
           </span>
+        </td>
+        <td className="whitespace-nowrap px-4 py-4 text-sm font-semibold text-slate-700 text-center">
+          {cso.totalPlans || 0}
         </td>
         <td className="whitespace-nowrap px-4 py-4 text-sm">
           <span
@@ -631,6 +634,9 @@ export default function CsoPage() {
                 </th>
                 <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Branch
+                </th>
+                <th scope="col" className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Monthly Plans
                 </th>
                 <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Status

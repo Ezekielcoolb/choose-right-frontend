@@ -15,6 +15,8 @@ import customerAuthReducer from "./slices/customerAuthSlice.jsx";
 import customerDataReducer from "./slices/customerDataSlice.jsx";
 import adminReportReducer from "./slices/adminReportSlice.jsx";
 import adminAuthReducer from "./slices/adminAuthSlice.jsx";
+import backdateReducer from "./slices/backdateSlice.jsx";
+import contributionUpdateReducer from "./slices/contributionUpdateSlice.jsx";
 
 const store = configureStore({
   reducer: {
@@ -34,6 +36,8 @@ const store = configureStore({
     customerData: customerDataReducer,
     adminReport: adminReportReducer,
     adminAuth: adminAuthReducer,
+    backdate: backdateReducer,
+    contributionUpdate: contributionUpdateReducer,
   },
 });
 

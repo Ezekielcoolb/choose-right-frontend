@@ -52,7 +52,7 @@ export default function ManagerSavingsPage() {
         const loanStatus = (plan?.loanDetails?.status || "").toLowerCase();
         if (plan?.isLoan === true) return false;
         if (plan?.planType === "loan") return false;
-        if (["approved", "active"].includes(loanStatus)) return false;
+        if (["approved", "active", "completed"].includes(loanStatus)) return false;
 
         const customer = plan.customerId || {};
         const cso = plan.csoId || {};
@@ -109,7 +109,7 @@ export default function ManagerSavingsPage() {
         </p>
       </header>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      {/* <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Total deposited</p>
           <p className="mt-2 text-2xl font-semibold text-slate-900">{formatCurrency(summary.totalDeposited)}</p>
@@ -126,7 +126,7 @@ export default function ManagerSavingsPage() {
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Available balance</p>
           <p className="mt-2 text-2xl font-semibold text-emerald-600">{formatCurrency(summary.availableBalance)}</p>
         </article>
-      </section>
+      </section> */}
 
       <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">

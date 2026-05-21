@@ -30,7 +30,7 @@ import {
 
 const tabConfig = [
   { key: "details", label: "Details" },
-  { key: "dashboard", label: "Dashboard" },
+  // { key: "dashboard", label: "Dashboard" },
   { key: "customers", label: "Customers" },
   { key: "remittance", label: "Remittance" },
   { key: "collections", label: "Collections" },
@@ -1097,10 +1097,10 @@ export default function ManagerCsoDetail() {
         {activeTab === "remittance" && (
           <div className="space-y-4">
             <div className="grid gap-4 md:grid-cols-3">
-              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              {/* <div className="rounded-2xl border border-slate-200 bg-white p-4">
                 <p className="text-xs uppercase tracking-wide text-slate-400">Total remitted</p>
                 <p className="mt-2 text-2xl font-semibold text-slate-900">{formatCurrency(dashboardStats.totalRemitted)}</p>
-              </div>
+              </div> */}
               <div className="rounded-2xl border border-slate-200 bg-white p-4">
                 <p className="text-xs uppercase tracking-wide text-slate-400">Remittance count</p>
                 <p className="mt-2 text-2xl font-semibold text-slate-900">{remittanceHistory.length}</p>
@@ -1213,12 +1213,12 @@ export default function ManagerCsoDetail() {
                     : "—"}
                 </p>
               </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              {/* <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Total collected</p>
                 <p className="mt-2 text-2xl font-semibold text-slate-900">
                   {formatCurrency(paymentsForSelectedDate.reduce((sum, p) => sum + p.amount, 0))}
                 </p>
-              </div>
+              </div> */}
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Payments</p>
                 <p className="mt-2 text-2xl font-semibold text-slate-900">{paymentsForSelectedDate.length}</p>

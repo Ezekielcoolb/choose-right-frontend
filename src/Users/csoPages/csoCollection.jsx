@@ -450,7 +450,7 @@ export default function CsoCollectionPage() {
           <h1 className="text-2xl font-semibold text-slate-900">Daily collections</h1>
           <p className="text-sm text-slate-500">
             Review all customer payments for the selected date. Use the date picker to revisit past
-            collection days.
+            collection.
           </p>
           <div
             className={`mt-3 inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-semibold ${countdownBadgeClass}`}

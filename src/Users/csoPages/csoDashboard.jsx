@@ -377,7 +377,7 @@ export default function CsoDashboardPage() {
       </div> */}
 
       {/* Loan Section */}
-      <div className="space-y-4">
+      {/* <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-900">Loan Section</h2>
           <div className="h-[1px] flex-1 bg-slate-100 mx-4" />
@@ -404,7 +404,7 @@ export default function CsoDashboardPage() {
             <p className="mt-1 text-xs text-slate-400">Outstanding exposure</p>
           </div>
         </div>
-      </div>
+      </div> */}
 
 
       <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
@@ -508,7 +508,7 @@ export default function CsoDashboardPage() {
         <article className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
           <header className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Customer spotlight</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Check customer spotlight</p>
               <h2 className="text-xl font-semibold text-slate-900">Top available balances</h2>
             </div>
             <button

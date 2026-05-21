@@ -282,6 +282,7 @@ export default function AdminCustomerPlanDetail() {
   const [isContributionCardOpen, setIsContributionCardOpen] = useState(false);
   const [selectedWardCell, setSelectedWardCell] = useState(null);
   const [isWardSlotDetailOpen, setIsWardSlotDetailOpen] = useState(false);
+  const [contributionMonth, setContributionMonth] = useState("all");
 
   useEffect(() => {
     if (!customerId) return;
@@ -368,6 +369,24 @@ export default function AdminCustomerPlanDetail() {
     const sorted = Array.from(unique).sort((a, b) => b.localeCompare(a));
     return sorted;
   }, [entriesWithMeta]);
+
+  const contributionMonthOptions = useMemo(() => {
+    if (!rawEntries.length) return [];
+    const unique = new Set();
+    rawEntries.forEach((entry) => {
+      if ((entry?.type || "").toLowerCase() !== "deposit") return;
+      const timestamp = entry?.recordedAt || entry?.createdAt || entry?.updatedAt;
+      const key = getMonthKey(timestamp);
+      if (key) unique.add(key);
+    });
+    return Array.from(unique).sort((a, b) => b.localeCompare(a));
+  }, [rawEntries]);
+
+  useEffect(() => {
+    if (contributionMonth === "all" && contributionMonthOptions.length > 0) {
+      setContributionMonth(contributionMonthOptions[0]);
+    }
+  }, [contributionMonthOptions, contributionMonth]);
 
   const filteredHistoryEntries = useMemo(() => {
     const isAllMonthsSelected = selectedMonths.includes("all") || !selectedMonths.length;
@@ -842,8 +861,13 @@ export default function AdminCustomerPlanDetail() {
       bucket.total += Number(entry.amount || 0);
     });
 
-    return Array.from(grouped.values()).sort((a, b) => a.date - b.date);
-  }, [decoratedPlan, rawEntries]);
+    return Array.from(grouped.values())
+      .filter((day) => {
+        if (contributionMonth === "all") return true;
+        return getMonthKey(day.date) === contributionMonth;
+      })
+      .sort((a, b) => a.date - b.date);
+  }, [decoratedPlan, rawEntries, contributionMonth]);
 
   const wardCells = useMemo(() => {
     if (!decoratedPlan || decoratedPlan.isLoanPlan) {
@@ -1389,10 +1413,46 @@ export default function AdminCustomerPlanDetail() {
             >
               {!wardCells.length ? (
                 <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">
-                  No contribution entries yet.
+                  <div className="mb-4 flex items-center justify-center gap-4">
+                    <label htmlFor="card-month-select" className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                      Select Month:
+                    </label>
+                    <select
+                      id="card-month-select"
+                      value={contributionMonth}
+                      onChange={(e) => setContributionMonth(e.target.value)}
+                      className="rounded-full border border-slate-200 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    >
+                      {contributionMonthOptions.map((m) => (
+                        <option key={m} value={m}>{formatMonthLabel(m)}</option>
+                      ))}
+                    </select>
+                  </div>
+                  No contribution entries for {formatMonthLabel(contributionMonth)}.
                 </div>
               ) : (
                 <div className="relative">
+                  <div className="mb-6 flex items-center justify-between px-2">
+                    <div className="flex items-center gap-4">
+                      <label htmlFor="card-month-select" className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                        Select Month:
+                      </label>
+                      <select
+                        id="card-month-select"
+                        value={contributionMonth}
+                        onChange={(e) => setContributionMonth(e.target.value)}
+                        className="rounded-full border border-slate-200 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      >
+                        {contributionMonthOptions.map((m) => (
+                          <option key={m} value={m}>{formatMonthLabel(m)}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Total for {formatMonthLabel(contributionMonth)}</p>
+                      <p className="text-lg font-bold text-primary">{formatCurrency(depositDays.reduce((sum, d) => sum + d.total, 0))}</p>
+                    </div>
+                  </div>
                   <div className="rounded-3xl bg-slate-950 p-6 shadow-inner">
                     <div className="grid grid-cols-3 gap-3 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8">
                       {wardCells.map((cell) => {

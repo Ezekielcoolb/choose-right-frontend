@@ -159,7 +159,7 @@ export default function ManagerLoansPage() {
             Refresh
          </button>
       </header>
-       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+       {/* <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Total loans</p>
           <p className="mt-2 text-2xl font-semibold text-slate-900">{formatCurrency(summary.totalAmount)}</p>
@@ -180,7 +180,7 @@ export default function ManagerLoansPage() {
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Outstanding balance</p>
           <p className="mt-2 text-2xl font-semibold text-slate-900">{formatCurrency(summary.totalBalance)}</p>
         </article>
-      </section>
+      </section> */}
 
       <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">

@@ -193,43 +193,51 @@ export default function BusinessReportPage() {
   }, [loansStatus, dispatch]);
 
   const fetchedPlanIdsRef = useRef(new Set());
+  const fetchingIdsRef = useRef(new Set());
 
   useEffect(() => {
     const plans = [...(adminPlans || []), ...(activeLoans || [])];
     if (!plans.length) return;
 
     plans.forEach((plan) => {
-      const planId = plan?._id;
+      const planId = plan?._id?.toString();
       if (!planId) return;
-      if (fetchedPlanIdsRef.current.has(planId)) return;
+      if (fetchedPlanIdsRef.current.has(planId) || fetchingIdsRef.current.has(planId)) return;
 
-      fetchedPlanIdsRef.current.add(planId);
-      if (entriesByPlan?.[planId]?.items) {
+      const existing = entriesByPlan?.[planId];
+      if (existing?.items && (existing.pagination?.limit || 0) >= 1000) {
+        fetchedPlanIdsRef.current.add(planId);
         return;
       }
 
+      fetchingIdsRef.current.add(planId);
       dispatch(
         fetchAdminPlanEntries({
           customerId: plan.customerId?._id || plan.customerId,
           planId,
           page: 1,
-          limit: 500,
+          limit: 1000,
         }),
-      );
+      ).finally(() => {
+        fetchingIdsRef.current.delete(planId);
+        fetchedPlanIdsRef.current.add(planId);
+      });
     });
-  }, [adminPlans, activeLoans, entriesByPlan, dispatch]);
+  }, [adminPlans, activeLoans, dispatch]);
 
   const planMap = useMemo(() => {
     const map = new Map();
     (adminPlans || []).forEach((plan) => {
-      if (plan?._id) {
-        map.set(plan._id, plan);
+      const planId = plan?._id?.toString();
+      if (planId) {
+        map.set(planId, plan);
       }
     });
     (activeLoans || []).forEach((loanPlan) => {
-      if (!loanPlan?._id) return;
-      const existing = map.get(loanPlan._id) || {};
-      map.set(loanPlan._id, { ...existing, ...loanPlan });
+      const planId = loanPlan?._id?.toString();
+      if (!planId) return;
+      const existing = map.get(planId) || {};
+      map.set(planId, { ...existing, ...loanPlan });
     });
     return map;
   }, [adminPlans, activeLoans]);
@@ -261,33 +269,33 @@ export default function BusinessReportPage() {
     const monthKeys = new Set();
 
     allPlans.forEach((plan) => {
-      const planId = plan?._id;
+      const planId = plan?._id?.toString();
       if (!planId) return;
       const entries = entriesByPlan?.[planId]?.items || [];
       const loanPlan = isLoanPlan(plan);
 
       entries.forEach((entry) => {
-        const dateKey = getLocalDateKey(entry.recordedAt || entry.createdAt);
+        const entryType = normalizeType(entry.type);
+        const entryDate = (WITHDRAWAL_TYPES.has(entryType) && entry.metadata?.processedAt) 
+          ? entry.metadata.processedAt 
+          : (entry.recordedAt || entry.createdAt);
+          
+        const dateKey = getLocalDateKey(entryDate);
         if (!dateKey) return;
-
         const amount = Number(entry.amount || 0);
         if (!Number.isFinite(amount) || amount <= 0) {
           return;
         }
 
-        const entryType = normalizeType(entry.type);
         const bucket =
           dailyMap.get(dateKey) || {
             deposits: 0,
-            withdrawals: 0,
             savingsFees: 0,
             loanFees: 0,
           };
 
         if (DEPOSIT_TYPES.has(entryType)) {
           bucket.deposits += amount;
-        } else if (WITHDRAWAL_TYPES.has(entryType)) {
-          bucket.withdrawals += amount;
         } else if (entryType.includes("fee")) {
           if (loanPlan) {
             bucket.loanFees += amount;
@@ -348,7 +356,6 @@ export default function BusinessReportPage() {
       amountDeposited: 0,
       adminFeeSavings: 0,
       adminFeeLoan: 0,
-      withdrawal: 0,
     };
 
     planCountsByDay.forEach((counts, dateKey) => {
@@ -365,7 +372,6 @@ export default function BusinessReportPage() {
       if (!date) return;
       if (date >= monthBounds.start && date <= monthBounds.end) {
         totals.amountDeposited += metrics.deposits;
-        totals.withdrawal += metrics.withdrawals;
         totals.adminFeeSavings += metrics.savingsFees;
         totals.adminFeeLoan += metrics.loanFees;
       }
@@ -398,14 +404,12 @@ export default function BusinessReportPage() {
       if (!bucket) return 0;
       return bucket.savingsFees + bucket.loanFees;
     });
-    const withdrawals = weekDayKeys.map((key) => (key ? entriesByDay.get(key)?.withdrawals || 0 : 0));
 
     return [
       { label: "Savings count", type: "count", values: savingsCounts },
       { label: "Loan count", type: "count", values: loanCounts },
       { label: "Amount deposited", type: "currency", values: deposits },
       { label: "Admin fee", type: "currency", values: adminFees },
-      { label: "Withdrawals", type: "currency", values: withdrawals },
     ];
   }, [weekDayKeys, planCountsByDay, entriesByDay]);
 
@@ -566,12 +570,6 @@ export default function BusinessReportPage() {
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Admin fee</p>
               <p className="mt-2 text-2xl font-semibold text-slate-900">{formatCurrency(monthlyTotals.adminFee)}</p>
               <p className="text-xs text-slate-500">{adminFeeBreakdownText}</p>
-            </article>
-
-            <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Withdrawals</p>
-              <p className="mt-2 text-2xl font-semibold text-rose-700">{formatCurrency(monthlyTotals.withdrawal)}</p>
-              <p className="text-xs text-slate-500">Total payouts processed this month</p>
             </article>
           </div>
         )}
