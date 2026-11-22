@@ -571,6 +571,9 @@ export default function ManagerWithdrawals() {
                   Amount
                 </th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">
+                  Balance
+                </th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-700">
                   CSO
                 </th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">
@@ -608,6 +611,9 @@ export default function ManagerWithdrawals() {
                     </td>
                     <td className="px-4 py-3 text-sm font-semibold text-slate-900">
                       {formatAmount(request.amount)}
+                    </td>
+                    <td className="px-4 py-3 text-sm font-semibold text-emerald-700">
+                      {formatAmount(request.planId?.availableBalance)}
                     </td>
                     <td className="px-4 py-3 text-xs text-slate-600">
                       {request.csoId

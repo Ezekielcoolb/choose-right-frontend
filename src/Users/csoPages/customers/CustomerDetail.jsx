@@ -956,19 +956,87 @@ export default function CustomerDetailPage() {
 
   const todayKey = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const currentMonthKey = useMemo(() => todayKey.slice(0, 7), [todayKey]);
-  const hasRemittanceToday = useMemo(() => {
+
+  // Checks if CSO is locked from deposits/withdrawals because remittance was submitted
+  // FOR TODAY (WAT), in which case deposits and withdrawals are locked until 11:00 AM WAT the following day.
+  // If NO remittance has been submitted for today, the CSO is NOT locked.
+  const WAT_OFFSET_MS = 1 * 60 * 60 * 1000; // UTC+1
+  const remittanceLockStatus = useMemo(() => {
     const records = csoProfile?.remittance || [];
-    return records.some((entry) => {
+    if (!records.length) return { isLocked: false, unlockDate: null };
+
+    const now = new Date();
+    const watNow = new Date(now.getTime() + WAT_OFFSET_MS);
+    const todayKeyWAT = `${watNow.getUTCFullYear()}-${String(watNow.getUTCMonth() + 1).padStart(2, "0")}-${String(watNow.getUTCDate()).padStart(2, "0")}`;
+
+    for (const entry of records) {
+      // Must have an actual remittance paid
+      const paid = Number(entry?.amountPaid || entry?.amountRemitted || 0);
+      if (!Number.isFinite(paid) || paid <= 0) {
+        continue;
+      }
+
+      // Ignore admin resolutions
+      if (entry?.remark && entry.remark.toLowerCase().includes("resolved by admin")) {
+        continue;
+      }
+
       const timestamp = entry?.createdAt || entry?.updatedAt;
-      if (!timestamp) return false;
+      if (!timestamp) continue;
       const entryDate = new Date(timestamp);
-      if (Number.isNaN(entryDate.getTime())) return false;
-      const normalized = new Date(entryDate.getTime() - entryDate.getTimezoneOffset() * 60000)
-        .toISOString()
-        .slice(0, 10);
-      return normalized === todayKey;
-    });
-  }, [csoProfile?.remittance, todayKey]);
+      if (Number.isNaN(entryDate.getTime())) continue;
+
+      // Convert to WAT to find the calendar day of the remittance
+      const watEntry = new Date(entryDate.getTime() + WAT_OFFSET_MS);
+      const entryKeyWAT = `${watEntry.getUTCFullYear()}-${String(watEntry.getUTCMonth() + 1).padStart(2, "0")}-${String(watEntry.getUTCDate()).padStart(2, "0")}`;
+
+      // Only locked IF remittance was submitted for TODAY
+      if (entryKeyWAT === todayKeyWAT) {
+        // Unlock is at 11:00 AM WAT the following day (expressed as UTC)
+        const unlockTimeUTC =
+          Date.UTC(
+            watEntry.getUTCFullYear(),
+            watEntry.getUTCMonth(),
+            watEntry.getUTCDate() + 1,
+            11, 0, 0, 0,
+          ) - WAT_OFFSET_MS;
+
+        const unlockDate = new Date(unlockTimeUTC);
+        if (now.getTime() < unlockDate.getTime()) {
+          return { isLocked: true, unlockDate };
+        }
+      }
+    }
+
+    return { isLocked: false, unlockDate: null };
+  }, [csoProfile?.remittance]);
+
+  // Keep backwards-compat alias used in several places
+  const hasRemittanceToday = remittanceLockStatus.isLocked;
+
+  const remittanceLockMessage = useMemo(() => {
+    if (!remittanceLockStatus.isLocked || !remittanceLockStatus.unlockDate) return null;
+    try {
+      const unlockDate = remittanceLockStatus.unlockDate;
+      if (!(unlockDate instanceof Date) || Number.isNaN(unlockDate.getTime())) {
+        return "Remittance submitted. Deposits and withdrawals are locked until 11:00 AM WAT tomorrow.";
+      }
+      const unlockStr = unlockDate.toLocaleTimeString("en-NG", {
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: "Africa/Lagos",
+      });
+      const unlockDateStr = unlockDate.toLocaleDateString("en-NG", {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        timeZone: "Africa/Lagos",
+      });
+      return `Remittance submitted. Deposits and withdrawals are locked until ${unlockStr} WAT on ${unlockDateStr}.`;
+    } catch {
+      return "Remittance submitted. Deposits and withdrawals are locked until 11:00 AM WAT tomorrow.";
+    }
+  }, [remittanceLockStatus]);
 
   useEffect(() => {
     if (!csoProfile) {
@@ -1622,8 +1690,8 @@ export default function CustomerDetailPage() {
   };
 
   const handleOpenDeposit = (plan) => {
-    if (hasRemittanceToday) {
-      toast.error("Remittance has been submitted for today. Deposits are locked until tomorrow.");
+    if (remittanceLockStatus.isLocked) {
+      toast.error(remittanceLockMessage || "Remittance submitted. Deposits are locked until 11:00 AM WAT tomorrow.");
       return;
     }
 
@@ -1664,6 +1732,11 @@ export default function CustomerDetailPage() {
   };
 
   const handleOpenWithdrawal = (plan) => {
+    if (remittanceLockStatus.isLocked) {
+      toast.error(remittanceLockMessage || "Remittance submitted. Withdrawal requests are locked until 11:00 AM WAT tomorrow.");
+      return;
+    }
+
     if (plan.latestWithdrawalRequest?.status === "pending") {
       toast.error("A withdrawal request is already pending approval for this plan.");
       return;
@@ -1712,7 +1785,7 @@ export default function CustomerDetailPage() {
     const amount = Number(values.amount);
 
     if (hasRemittanceToday) {
-      toast.error("Today’s remittance is already submitted. Please record deposits tomorrow.");
+      toast.error(remittanceLockMessage || "Deposits are locked until 11:00 AM WAT tomorrow.");
       return;
     }
 
@@ -2330,6 +2403,7 @@ export default function CustomerDetailPage() {
                                       : "text-slate-600 hover:bg-slate-100"
                                   }`}
                                   disabled={hasRemittanceToday}
+                                  title={hasRemittanceToday ? remittanceLockMessage : undefined}
                                 >
                                   Record deposit
                                   <Download className="h-3.5 w-3.5 text-emerald-500" />
@@ -2354,7 +2428,13 @@ export default function CustomerDetailPage() {
                                       setOpenPlanActionsId(null);
                                       handleOpenWithdrawal(plan);
                                     }}
-                                    className="flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-100"
+                                    disabled={remittanceLockStatus.isLocked}
+                                    className={`flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition ${
+                                      remittanceLockStatus.isLocked
+                                        ? "cursor-not-allowed bg-slate-100 text-slate-400"
+                                        : "text-slate-600 hover:bg-slate-100"
+                                    }`}
+                                    title={remittanceLockStatus.isLocked ? remittanceLockMessage : undefined}
                                   >
                                     Request withdrawal
                                     <Upload className="h-3.5 w-3.5 text-amber-500" />

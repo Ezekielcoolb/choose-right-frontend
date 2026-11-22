@@ -608,6 +608,7 @@ export default function WithdrawalRequest() {
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Customer</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Plan</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Amount</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-700">Balance</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">CSO</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Status</th>
                 <th className="px-4 py-3 text-right font-semibold text-slate-700">Actions</th>
@@ -637,6 +638,7 @@ export default function WithdrawalRequest() {
                     </td>
                     <td className="px-4 py-3 text-xs text-slate-600">{request.planId?.planName || "No Plan"}</td>
                     <td className="px-4 py-3 text-sm font-semibold text-slate-900">{formatAmount(request.amount)}</td>
+                    <td className="px-4 py-3 text-sm font-semibold text-emerald-700">{formatAmount(request.planId?.availableBalance)}</td>
                     <td className="px-4 py-3 text-xs text-slate-600">
                       {request.csoId ? `${request.csoId.firstName} ${request.csoId.lastName}` : "No CSO"}
                     </td>
