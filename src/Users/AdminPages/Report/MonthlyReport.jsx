@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
 
-import { fetchAdminSavingsPlans, fetchAdminPlanEntries } from "../../../redux/slices/savingsSlice";
+import { fetchAdminSavingsPlans, fetchAllAdminPlanEntries } from "../../../redux/slices/savingsSlice";
 import { fetchActiveLoans } from "../../../redux/slices/adminLoanSlice";
 
 const currencyFormatter = new Intl.NumberFormat("en-NG", {
@@ -143,18 +143,16 @@ export default function MonthlyReportPage() {
       if (fetchedPlanIdsRef.current.has(planId) || fetchingIdsRef.current.has(planId)) return;
 
       const existing = entriesByPlan?.[planId];
-      if (existing?.items && (existing.pagination?.limit || 0) >= 1000) {
+      if (existing?.items && existing.items.length >= (existing.pagination?.total || 0)) {
         fetchedPlanIdsRef.current.add(planId);
         return;
       }
 
       fetchingIdsRef.current.add(planId);
       dispatch(
-        fetchAdminPlanEntries({
+        fetchAllAdminPlanEntries({
           customerId: plan.customerId?._id || plan.customerId,
           planId,
-          page: 1,
-          limit: 1000,
         }),
       ).finally(() => {
         fetchingIdsRef.current.delete(planId);

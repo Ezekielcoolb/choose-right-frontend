@@ -1,8 +1,6 @@
 import { useMemo, useState } from "react";
 import { Menu, Bell, LogOut, User, Settings, AlarmClock } from "lucide-react";
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
-// const API_BASE_URL = "https://api.betterlifeloan.com";
+import { BASE_URL } from "../../api/client";
 
 function getInitials(firstName, lastName) {
   const initialOne = firstName?.[0] ?? "";
@@ -34,7 +32,7 @@ export default function CsoNav({
     if (cso?.profileImg) {
       return (
         <img
-          src={`${API_BASE_URL}${cso.profileImg}`}
+          src={`${BASE_URL}${cso.profileImg}`}
           alt={fullName}
           className="h-10 w-10 rounded-full object-cover"
         />

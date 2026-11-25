@@ -12,7 +12,7 @@ import {
 
 import {
   fetchAdminSavingsPlans,
-  fetchAdminPlanEntries,
+  fetchAllAdminPlanEntries,
 } from "../../../redux/slices/savingsSlice";
 import { fetchCustomers } from "../../../redux/slices/customersSlice";
 import { fetchCsos } from "../../../redux/slices/csoSlice";
@@ -214,11 +214,9 @@ export default function AdminCollectionsPage() {
 
       fetchedPlans.current.add(plan._id);
       dispatch(
-        fetchAdminPlanEntries({
+        fetchAllAdminPlanEntries({
           customerId: plan.customerId?._id || plan.customerId,
           planId: plan._id,
-          page: 1,
-          limit: 500,
         }),
       );
     });

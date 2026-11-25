@@ -133,6 +133,45 @@ export const fetchAdminPlanEntries = createAsyncThunk(
   },
 );
 
+export const fetchAllAdminPlanEntries = createAsyncThunk(
+  "savings/fetchAllAdminPlanEntries",
+  async ({ customerId, planId }, thunkAPI) => {
+    try {
+      const limit = 100;
+      let page = 1;
+      let items = [];
+      let total = 0;
+      let pages = 1;
+      let plan = null;
+
+      do {
+        const response = await apiClient.get(
+          `/admin/customers/${customerId}/plans/${planId}/entries?page=${page}&limit=${limit}`,
+        );
+        const data = response.data || {};
+        if (!plan && data.plan) plan = data.plan;
+        items = items.concat(Array.isArray(data.items) ? data.items : []);
+        total = Number(data.pagination?.total ?? items.length);
+        pages = Number(data.pagination?.pages ?? Math.ceil(total / limit));
+        if (!Number.isFinite(pages) || pages < 1) pages = 1;
+        page += 1;
+      } while (page <= pages && items.length < total);
+
+      return {
+        customerId,
+        planId,
+        data: {
+          plan,
+          items,
+          pagination: { page: 1, pages, total, limit: items.length },
+        },
+      };
+    } catch (error) {
+      return thunkAPI.rejectWithValue(error.response?.data?.message || error.message);
+    }
+  },
+);
+
 export const fetchSavingsPlanById = createAsyncThunk(
   "savings/fetchById",
   async (planId, thunkAPI) => {
@@ -235,6 +274,36 @@ export const fetchSavingsEntries = createAsyncThunk(
     try {
       const response = await apiClient.get(`/savings/${planId}/entries?page=${page}&limit=${limit}`);
       return { planId, page, data: response.data };
+    } catch (error) {
+      return thunkAPI.rejectWithValue(error.response?.data?.message || error.message);
+    }
+  },
+);
+
+export const fetchAllSavingsEntries = createAsyncThunk(
+  "savings/fetchAllEntries",
+  async (planId, thunkAPI) => {
+    try {
+      const limit = 100;
+      let page = 1;
+      let items = [];
+      let total = 0;
+      let pages = 1;
+
+      do {
+        const response = await apiClient.get(`/savings/${planId}/entries?page=${page}&limit=${limit}`);
+        const data = response.data || {};
+        items = items.concat(Array.isArray(data.items) ? data.items : []);
+        total = Number(data.pagination?.total ?? items.length);
+        pages = Number(data.pagination?.pages ?? Math.ceil(total / limit));
+        if (!Number.isFinite(pages) || pages < 1) pages = 1;
+        page += 1;
+      } while (page <= pages && items.length < total);
+
+      return {
+        planId,
+        data: { items, pagination: { page: 1, pages, total, limit: items.length } },
+      };
     } catch (error) {
       return thunkAPI.rejectWithValue(error.response?.data?.message || error.message);
     }
@@ -349,14 +418,10 @@ const savingsSlice = createSlice({
       })
       .addCase(fetchSavingsPlanById.fulfilled, (state, action) => {
         state.mutationStatus = "succeeded";
-        const { plan, recentEntries, withdrawalRequests } = action.payload;
+        const { plan, withdrawalRequests } = action.payload;
         const normalizedPlan = normalizePlan(plan);
         state.selectedPlan = normalizedPlan;
         state.plansById[normalizedPlan._id] = normalizedPlan;
-        state.entriesByPlan[normalizedPlan._id] = {
-          items: recentEntries,
-          pagination: { page: 1, pages: 1, total: recentEntries.length, limit: 20 },
-        };
         if (withdrawalRequests) {
           state.withdrawalRequestsByPlan[normalizedPlan._id] = withdrawalRequests;
         }
@@ -379,6 +444,23 @@ const savingsSlice = createSlice({
         state.entriesByPlan[planId] = data;
       })
       .addCase(fetchAdminPlanEntries.rejected, (state, action) => {
+        state.mutationStatus = "failed";
+        state.mutationError = action.payload || action.error.message;
+      })
+      .addCase(fetchAllAdminPlanEntries.pending, (state) => {
+        state.mutationStatus = "loading";
+        state.mutationError = null;
+      })
+      .addCase(fetchAllAdminPlanEntries.fulfilled, (state, action) => {
+        state.mutationStatus = "succeeded";
+        const { planId, data } = action.payload;
+        if (data?.plan) {
+          const normalizedPlan = normalizePlan(data.plan);
+          state.plansById[normalizedPlan._id] = normalizedPlan;
+        }
+        state.entriesByPlan[planId] = data;
+      })
+      .addCase(fetchAllAdminPlanEntries.rejected, (state, action) => {
         state.mutationStatus = "failed";
         state.mutationError = action.payload || action.error.message;
       })
@@ -522,6 +604,19 @@ const savingsSlice = createSlice({
         state.entriesByPlan[planId] = data;
       })
       .addCase(fetchSavingsEntries.rejected, (state, action) => {
+        state.mutationStatus = "failed";
+        state.mutationError = action.payload || action.error.message;
+      })
+      .addCase(fetchAllSavingsEntries.pending, (state) => {
+        state.mutationStatus = "loading";
+        state.mutationError = null;
+      })
+      .addCase(fetchAllSavingsEntries.fulfilled, (state, action) => {
+        state.mutationStatus = "succeeded";
+        const { planId, data } = action.payload;
+        state.entriesByPlan[planId] = data;
+      })
+      .addCase(fetchAllSavingsEntries.rejected, (state, action) => {
         state.mutationStatus = "failed";
         state.mutationError = action.payload || action.error.message;
       })

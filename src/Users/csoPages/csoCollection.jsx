@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { Loader2, CalendarDays, RefreshCw, Banknote, X, Search } from "lucide-react";
 import {
   fetchSavingsPlans,
-  fetchSavingsEntries,
+  fetchAllSavingsEntries,
 } from "../../redux/slices/savingsSlice";
 import { fetchCustomers } from "../../redux/slices/customersSlice";
 import {
@@ -175,7 +175,7 @@ export default function CsoCollectionPage() {
       }
 
       fetchedEntriesRef.current.add(plan._id);
-      dispatch(fetchSavingsEntries({ planId: plan._id, page: 1, limit: 500 }));
+      dispatch(fetchAllSavingsEntries(plan._id));
     });
   }, [plansStatus, plans, entriesByPlan, dispatch]);
 

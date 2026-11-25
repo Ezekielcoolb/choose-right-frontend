@@ -26,6 +26,7 @@ import {
   Trash2
 } from "lucide-react";
 import { toast } from "react-hot-toast";
+import { BASE_URL } from "../../../api/client";
 
 function LoanDetailsModal({ open, plan, onClose }) {
   if (!open || !plan) return null;
@@ -33,7 +34,6 @@ function LoanDetailsModal({ open, plan, onClose }) {
   const loanDetails = plan.loanRequest || plan.loanDetails || {};
   const guarantor = loanDetails?.guarantor || {};
 
-  const BASE_URL = "https://api.hichooseright.com"
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4 py-10">
       <div className="relative w-full max-w-2xl rounded-3xl bg-white shadow-2xl">

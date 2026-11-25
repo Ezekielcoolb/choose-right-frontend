@@ -4,6 +4,7 @@ import { Loader2, Camera, MapPin, Phone, Calendar, Save } from "lucide-react";
 import { fetchCsoProfile } from "../../redux/slices/csoAuthSlice";
 import { uploadFile, clearUploadState } from "../../redux/slices/uploadSlice";
 import { updateCso } from "../../redux/slices/csoSlice";
+import { BASE_URL } from "../../api/client";
 import { toast } from "react-hot-toast";
 
 const AVATAR_FOLDER = "cso-profile";
@@ -169,7 +170,7 @@ export default function CsoProfilePage() {
             <div className="relative">
               {avatarSource ? (
                 <img
-                  src={`http://localhost:5000${avatarSource}`}
+                  src={`${BASE_URL}${avatarSource}`}
                   alt={`${profile.firstName} ${profile.lastName}`}
                   className="h-32 w-32 rounded-full object-cover shadow"
                 />

@@ -14,7 +14,7 @@ import {
   TrendingUp,
   X,
 } from "lucide-react";
-import { fetchAdminSavingsPlans, fetchAdminPlanEntries } from "../../../redux/slices/savingsSlice";
+import { fetchAdminSavingsPlans, fetchAllAdminPlanEntries } from "../../../redux/slices/savingsSlice";
 import { fetchCustomerById, clearCustomerState } from "../../../redux/slices/customersSlice";
 
 const HISTORY_CATEGORIES = [
@@ -295,9 +295,8 @@ export default function AdminCustomerPlanDetail() {
 
   useEffect(() => {
     if (!customerId || !planId) return;
-    if (entriesByPlan?.[planId]?.items) return;
-    dispatch(fetchAdminPlanEntries({ customerId, planId, page: 1, limit: 500 }));
-  }, [customerId, dispatch, entriesByPlan, planId]);
+    dispatch(fetchAllAdminPlanEntries({ customerId, planId }));
+  }, [customerId, dispatch, planId]);
 
   const plan = useMemo(() => {
     if (!planId) return null;
